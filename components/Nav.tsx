@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const links = [
   { href: "/", label: "대시보드", icon: "📊" },
@@ -13,6 +13,16 @@ const links = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // 로그인 화면에서는 사이드바를 숨긴다.
+  if (pathname === "/login") return null;
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="w-60 shrink-0 border-r border-slate-200 bg-white min-h-screen p-4 hidden md:block">
@@ -40,7 +50,15 @@ export default function Nav() {
           );
         })}
       </nav>
-      <div className="mt-8 px-3 text-[11px] leading-relaxed text-slate-400">
+      <div className="mt-8 px-3">
+        <button
+          onClick={logout}
+          className="w-full text-left text-sm text-slate-500 hover:text-red-600 rounded-lg px-3 py-2 hover:bg-slate-50"
+        >
+          로그아웃
+        </button>
+      </div>
+      <div className="mt-3 px-3 text-[11px] leading-relaxed text-slate-400">
         정산팀 전용 · 계약금/중도금/잔금 수납, 주·월 매출, 부가세 신고를 한 곳에서
         관리합니다.
       </div>

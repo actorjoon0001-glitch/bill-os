@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
-  const from = params.get("from") || "/";
+  const rawFrom = params.get("from") || "/";
+  const from = rawFrom.startsWith("/login") || !rawFrom.startsWith("/") ? "/" : rawFrom;
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -19,14 +19,15 @@ export default function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: password.trim() }),
+        credentials: "same-origin",
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         throw new Error(json.error || "로그인 실패");
       }
-      router.push(from.startsWith("/login") ? "/" : from);
-      router.refresh();
+      // 클라이언트 라우팅 대신 전체 페이지 이동으로 쿠키를 확실히 반영한다.
+      window.location.assign(from);
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인 실패");
       setBusy(false);

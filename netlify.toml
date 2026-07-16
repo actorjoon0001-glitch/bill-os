@@ -1,16 +1,20 @@
 # Netlify 배포 설정 - Next.js(SSR) + Prisma(Supabase Postgres)
-# Netlify 는 package.json 의 next 의존성을 감지해 공식 Next.js 런타임을 자동 적용합니다.
 # 빌드: Prisma 클라이언트 생성 → (DATABASE_URL 있으면) Supabase 스키마 반영 → next build
 # DATABASE_URL 이 없어도 빌드는 성공하며, 최소한 로그인 화면은 렌더됩니다.
 
 [build]
   command = "npm run build"
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
   PRISMA_HIDE_UPDATE_MESSAGE = "true"
   # devDependencies(prisma 등)도 설치되도록
   NPM_FLAGS = "--include=dev"
+
+# Next.js 런타임을 명시적으로 활성화 (자동 감지 실패 대비)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # 참고: 아래 환경변수는 Netlify 사이트 설정(Site settings → Environment variables)에 등록하세요.
 #   DATABASE_URL   : Supabase 연결 문자열 (권장: Session/Direct connection)

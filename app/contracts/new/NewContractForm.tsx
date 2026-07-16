@@ -33,7 +33,7 @@ export default function NewContractForm() {
     contractDate: new Date().toISOString().slice(0, 10),
     memo: "",
   });
-  const [doc, setDoc] = useState<{ documentName: string; documentPath: string } | null>(null);
+  const [doc, setDoc] = useState<{ documentName: string; documentId: string } | null>(null);
 
   const [rows, setRows] = useState<Row[]>([
     { kind: "DOWN_PAYMENT", label: "계약금", plannedAmount: "", dueDate: "" },
@@ -116,7 +116,7 @@ export default function NewContractForm() {
           ...form,
           totalAmount: Number(form.totalAmount) || 0,
           documentName: doc?.documentName,
-          documentPath: doc?.documentPath,
+          documentId: doc?.documentId,
           installments: rows
             .filter((r) => Number(r.plannedAmount) > 0)
             .map((r, idx) => ({

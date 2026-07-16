@@ -47,7 +47,6 @@ async function main() {
       totalAmount: 110_000_000,
       contractDate: new Date(`${y}-06-05`),
       documentName: "대성건설_공사계약서_수기.pdf",
-      documentPath: null,
       memo: "수기 계약서 스캔본 보관",
       installments: {
         create: [

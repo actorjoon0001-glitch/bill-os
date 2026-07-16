@@ -19,8 +19,9 @@
 ## 기술 스택
 
 - **Next.js 14** (App Router) + **React 18** + **TypeScript**
-- **Prisma** ORM + **SQLite** (운영 시 PostgreSQL 전환 용이)
+- **Prisma** ORM + **PostgreSQL (Supabase)**
 - **Tailwind CSS**
+- 배포: **Netlify** (SSR + 서버리스 함수)
 
 ## 데이터 모델
 
@@ -28,25 +29,42 @@
 - **Installment(납입 회차)** — 계약금/중도금/잔금, 예정금액·예정일, 수납 여부·수납일·수납금액
 - **Expense(비용)** — 지출일, 항목, 금액(부가세 포함), 매입 과세유형, 계약 연결
 
-> 금액은 모두 **원 단위 정수**로 저장하며, 계약·지출 금액은 **부가세 포함(공급대가)** 기준입니다.
+- **Document(계약서 파일)** — 업로드된 계약서(PDF/이미지)를 DB에 바이트로 보관 (서버리스 환경 대응)
+
+> 금액은 모두 **원 단위 정수**로 저장하며(항목당 최대 약 21.4억원), 계약·지출 금액은 **부가세 포함(공급대가)** 기준입니다.
 > 과세 건은 `세액 = 금액 ÷ 11`, `공급가액 = 금액 − 세액` 으로 분리합니다.
 
-## 시작하기
+## 로컬 개발
 
 ```bash
 # 1) 의존성 설치
 npm install
 
-# 2) 환경변수 준비 (.env.example 참고)
+# 2) 환경변수 준비 (.env.example 참고) — DATABASE_URL 에 PostgreSQL(로컬 또는 Supabase) 문자열 입력
 cp .env.example .env
 
-# 3) DB 생성 + 클라이언트 생성 + 데모 데이터 시드
+# 3) 스키마 반영 + 클라이언트 생성 + 데모 데이터 시드
 npm run setup
 
 # 4) 개발 서버 실행
 npm run dev
 # http://localhost:3000
 ```
+
+## Netlify + Supabase 배포
+
+1. **Supabase 프로젝트 생성** → Project Settings → Database → Connection string 복사
+   (서버리스에서는 **Session/Direct connection** 사용 권장. Transaction 풀러(pgBouncer)는 `prisma db push` 와 호환되지 않습니다.)
+2. **Netlify 사이트**를 이 GitHub 저장소에 연결 (Netlify 가 Next.js 를 감지해 자동으로 SSR 런타임 적용)
+3. Netlify **Site settings → Environment variables** 에 등록:
+   - `DATABASE_URL` = Supabase 연결 문자열
+   - `ADMIN_PASSWORD` = 관리자 비밀번호 (미설정 시 `931122`)
+   - `AUTH_SECRET` = 임의의 긴 문자열
+4. 배포하면 빌드 시 `prisma db push` 가 Supabase 스키마를 자동 생성한 뒤 `next build` 가 실행됩니다.
+   (스키마는 최초 1회 생성되며, 데모 데이터가 필요하면 로컬에서 `DATABASE_URL` 을 Supabase 로 두고 `npm run db:seed` 실행)
+
+> Netlify 함수는 AWS Lambda 위에서 동작하므로 `prisma/schema.prisma` 의 `binaryTargets` 에
+> `rhel-openssl-*` 를 포함해 두었습니다.
 
 ### 로그인
 
@@ -59,7 +77,8 @@ npm run dev
 | 명령 | 설명 |
 | --- | --- |
 | `npm run dev` | 개발 서버 |
-| `npm run build` | 프로덕션 빌드 (`prisma generate` 포함) |
+| `npm run build` | 배포용 빌드 (`prisma generate` + `prisma db push` + `next build`) |
+| `npm run build:local` | 로컬 빌드 (db push 없이 `prisma generate` + `next build`) |
 | `npm run start` | 프로덕션 서버 |
 | `npm run setup` | Prisma generate + db push + seed (최초 1회) |
 | `npm run db:seed` | 데모 데이터 다시 넣기 |
@@ -69,10 +88,10 @@ npm run dev
 
 - 인증은 현재 단일 관리자 비밀번호 방식입니다. 플랫폼 SSO 연동 시 `middleware.ts`
   와 `lib/auth.ts` 를 플랫폼 세션 검증으로 교체하면 됩니다.
-- SQLite → PostgreSQL 전환은 `prisma/schema.prisma` 의 `datasource` provider 와
-  `DATABASE_URL` 변경만으로 가능합니다.
 - 매출 인식 기준은 현재 **수납일(현금주의)** 입니다. 세금계산서 발행 기준(발생주의)이
   필요하면 `lib/reports.ts` 의 인식 로직을 조정하세요.
+- 계약서 파일은 DB(Document)에 저장합니다(서버리스 대응, 4MB 이하). 대용량이 필요하면
+  Supabase Storage 등 오브젝트 스토리지로 전환할 수 있습니다.
 
 > ⚠️ 부가세 계산은 정산 관리용 참고 수치입니다. 실제 신고 시에는 세금계산서 발행
 > 기준과 세무 검토가 필요합니다.

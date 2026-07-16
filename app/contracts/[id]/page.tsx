@@ -112,10 +112,10 @@ export default async function ContractDetailPage({
             <h2 className="font-semibold text-slate-800 mb-1">계약 정보</h2>
             <Row label="계약일" value={toDateStr(c.contractDate)} />
             <Row label="등록일" value={toDateStr(c.createdAt)} />
-            {c.documentPath ? (
+            {c.documentId ? (
               <div className="pt-1">
                 <a
-                  href={`/api/files/${encodeURIComponent(c.documentPath)}`}
+                  href={`/api/files/${encodeURIComponent(c.documentId)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-brand-600 hover:underline text-sm"

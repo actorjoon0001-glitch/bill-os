@@ -1,22 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { prisma } from "@/lib/db";
 
 // 계약서 파일(수기 스캔본/전자계약 PDF) 업로드.
-// data/uploads 에 저장하고 저장 파일명을 반환한다.
+// 서버리스(Netlify) 환경에서는 디스크에 저장할 수 없으므로 DB(Document)에 바이트로 보관하고
+// 저장된 Document id 를 반환한다.
 export const runtime = "nodejs";
 
-const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
+// Netlify Functions 동기 페이로드 한도(약 6MB)를 고려해 4MB 로 제한
+const MAX_SIZE = 4 * 1024 * 1024;
 
-function safeName(original: string): string {
-  const ext = path.extname(original);
-  const base = path
-    .basename(original, ext)
-    .replace(/[^a-zA-Z0-9가-힣_-]/g, "_")
-    .slice(0, 60);
-  const stamp = Date.now().toString(36);
-  return `${stamp}_${base}${ext}`;
-}
+const ALLOWED = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+];
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,21 +25,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
     }
     const blob = file as File;
-    if (blob.size > 20 * 1024 * 1024) {
+    if (blob.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "파일은 20MB 이하만 업로드할 수 있습니다." },
+        { error: "파일은 4MB 이하만 업로드할 수 있습니다." },
+        { status: 400 }
+      );
+    }
+    const mimeType = blob.type || "application/octet-stream";
+    if (blob.type && !ALLOWED.includes(blob.type)) {
+      return NextResponse.json(
+        { error: "PDF 또는 이미지 파일만 업로드할 수 있습니다." },
         { status: 400 }
       );
     }
 
-    await mkdir(UPLOAD_DIR, { recursive: true });
-    const stored = safeName(blob.name || "contract");
     const bytes = Buffer.from(await blob.arrayBuffer());
-    await writeFile(path.join(UPLOAD_DIR, stored), bytes);
+    const doc = await prisma.document.create({
+      data: {
+        filename: blob.name || "contract",
+        mimeType,
+        size: bytes.length,
+        data: bytes,
+      },
+      select: { id: true, filename: true },
+    });
 
     return NextResponse.json({
-      documentName: blob.name,
-      documentPath: stored,
+      documentName: doc.filename,
+      documentId: doc.id,
     });
   } catch (e) {
     console.error(e);

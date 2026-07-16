@@ -1,16 +1,17 @@
-// 세움 정산 OS - 데이터 모델
+// 세움 정산 OS - 데이터 모델 (PostgreSQL / Supabase)
 // 계약(수기/전자) → 회차별 납입(계약금/중도금/잔금) → 수납 체크 → 매출/부가세 집계
-// 참고: SQLite 는 native enum 을 지원하지 않으므로 문자열 필드 + 앱 레벨 검증을 사용한다.
 //   source:  MANUAL | ELECTRONIC              (수기 | 전자)
 //   taxType: TAXABLE | ZERO_RATED | EXEMPT    (과세 | 영세율 | 면세)
 //   status:  ACTIVE | COMPLETED | CANCELED    (진행중 | 완납 | 해지)
 //   kind:    DOWN_PAYMENT | INTERIM | BALANCE (계약금 | 중도금 | 잔금)
 generator client {
   provider = "prisma-client-js"
+  // Netlify(AWS Lambda) 서버리스 런타임용 쿼리 엔진 바이너리 포함
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -27,12 +28,13 @@ model Contract {
   contractDate DateTime // 계약일
   memo         String?
   documentName String? // 첨부 계약서 원본 파일명
-  documentPath String? // 저장된 파일 경로(파일명)
+  documentId   String? // 첨부 파일(Document) id
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   installments Installment[]
   expenses     Expense[]
+  document     Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
 }
 
 model Installment {
@@ -69,4 +71,17 @@ model Expense {
 
   @@index([expenseDate])
   @@index([contractId])
+}
+
+// 업로드된 계약서 파일(수기 스캔본/전자계약 PDF)을 DB에 저장.
+// 서버리스(Netlify) 환경은 디스크 쓰기가 불가능하므로 바이트를 Postgres 에 보관한다.
+model Document {
+  id        String     @id @default(cuid())
+  filename  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime   @default(now())
+
+  contracts Contract[]
 }

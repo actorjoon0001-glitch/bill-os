@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma, safeQuery } from "@/lib/db";
 import {
   splitVat,
   weekKey,
@@ -27,24 +27,30 @@ export async function getReceivedRows(range?: {
   start: Date;
   end: Date;
 }): Promise<ReceivedRow[]> {
-  const installments = await prisma.installment.findMany({
-    where: {
-      received: true,
-      receivedDate: range ? { gte: range.start, lte: range.end } : { not: null },
-    },
-    include: {
-      contract: {
-        select: {
-          id: true,
-          contractNo: true,
-          title: true,
-          clientName: true,
-          taxType: true,
+  const installments = await safeQuery(
+    () =>
+      prisma.installment.findMany({
+        where: {
+          received: true,
+          receivedDate: range
+            ? { gte: range.start, lte: range.end }
+            : { not: null },
         },
-      },
-    },
-    orderBy: { receivedDate: "asc" },
-  });
+        include: {
+          contract: {
+            select: {
+              id: true,
+              contractNo: true,
+              title: true,
+              clientName: true,
+              taxType: true,
+            },
+          },
+        },
+        orderBy: { receivedDate: "asc" },
+      }),
+    []
+  );
 
   return installments
     .filter((i) => i.receivedDate)
@@ -146,9 +152,13 @@ export async function vatReport(start: Date, end: Date): Promise<VatReport> {
     salesByType[r.taxType].vat += vat;
   }
 
-  const expenses = await prisma.expense.findMany({
-    where: { expenseDate: { gte: start, lte: end } },
-  });
+  const expenses = await safeQuery(
+    () =>
+      prisma.expense.findMany({
+        where: { expenseDate: { gte: start, lte: end } },
+      }),
+    []
+  );
   const purchases = { gross: 0, supply: 0, vat: 0, count: 0 };
   for (const e of expenses) {
     const { supply, vat } = splitVat(e.amount, e.taxType as TaxType);
@@ -175,10 +185,14 @@ export async function dashboardSummary() {
   const [monthRows, weekRows, contracts] = await Promise.all([
     getReceivedRows({ start: mStart, end: mEnd }),
     getReceivedRows({ start: wStart, end: wEnd }),
-    prisma.contract.findMany({
-      where: { status: { not: "CANCELED" } },
-      include: { installments: true },
-    }),
+    safeQuery(
+      () =>
+        prisma.contract.findMany({
+          where: { status: { not: "CANCELED" } },
+          include: { installments: true },
+        }),
+      []
+    ),
   ]);
 
   const monthGross = monthRows.reduce((s, r) => s + r.receivedAmount, 0);

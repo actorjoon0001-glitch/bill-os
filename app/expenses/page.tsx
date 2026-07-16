@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma, safeQuery } from "@/lib/db";
 import { PageHeader, StatCard } from "@/components/ui";
 import { splitVat, type TaxType } from "@/lib/finance";
 import ExpensesClient from "./ExpensesClient";
@@ -7,15 +7,23 @@ export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
   const [expenses, contracts] = await Promise.all([
-    prisma.expense.findMany({
-      orderBy: { expenseDate: "desc" },
-      include: { contract: { select: { contractNo: true, title: true } } },
-    }),
-    prisma.contract.findMany({
-      where: { status: { not: "CANCELED" } },
-      select: { id: true, contractNo: true, title: true },
-      orderBy: { contractDate: "desc" },
-    }),
+    safeQuery(
+      () =>
+        prisma.expense.findMany({
+          orderBy: { expenseDate: "desc" },
+          include: { contract: { select: { contractNo: true, title: true } } },
+        }),
+      []
+    ),
+    safeQuery(
+      () =>
+        prisma.contract.findMany({
+          where: { status: { not: "CANCELED" } },
+          select: { id: true, contractNo: true, title: true },
+          orderBy: { contractDate: "desc" },
+        }),
+      []
+    ),
   ]);
 
   const now = new Date();

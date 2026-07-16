@@ -16,7 +16,5 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# 참고: 아래 환경변수는 Netlify 사이트 설정(Site settings → Environment variables)에 등록하세요.
-#   DATABASE_URL   : Supabase 연결 문자열 (권장: Session/Direct connection)
-#   ADMIN_PASSWORD : 관리자 로그인 비밀번호 (미설정 시 기본값 931122)
-#   AUTH_SECRET    : 세션 쿠키용 토큰 (임의의 긴 문자열 권장)
+# 참고: 아래 환경변수를 Netlify 사이트 설정(Site settings → Environment variables)에 등록하세요.
+#   DATABASE_URL : Supabase 연결 문자열 (권장: Session/Direct connection)

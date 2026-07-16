@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { dashboardSummary, monthlyRevenue } from "@/lib/reports";
-import { prisma } from "@/lib/db";
+import { prisma, safeQuery, isDbReady } from "@/lib/db";
 import { PageHeader, StatCard, SourceBadge, StatusBadge } from "@/components/ui";
 import { formatKRW, toDateStr, INSTALLMENT_KIND_LABEL } from "@/lib/finance";
 
@@ -10,14 +10,21 @@ export default async function DashboardPage() {
   const [summary, months, upcoming] = await Promise.all([
     dashboardSummary(),
     monthlyRevenue(6),
-    prisma.installment.findMany({
-      where: { received: false, dueDate: { not: null } },
-      include: { contract: { select: { contractNo: true, title: true, clientName: true } } },
-      orderBy: { dueDate: "asc" },
-      take: 6,
-    }),
+    safeQuery(
+      () =>
+        prisma.installment.findMany({
+          where: { received: false, dueDate: { not: null } },
+          include: {
+            contract: { select: { contractNo: true, title: true, clientName: true } },
+          },
+          orderBy: { dueDate: "asc" },
+          take: 6,
+        }),
+      []
+    ),
   ]);
 
+  const dbReady = await isDbReady();
   const maxMonth = Math.max(1, ...months.map((m) => m.gross));
   const collectRate =
     summary.contractTotal > 0
@@ -35,6 +42,14 @@ export default async function DashboardPage() {
           </Link>
         }
       />
+
+      {!dbReady && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <b>데이터베이스가 아직 연결되지 않았습니다.</b> 화면은 정상이지만 데이터는
+          비어 있습니다. Netlify 환경변수에 <code>DATABASE_URL</code>(Supabase)을 등록하고
+          재배포하면 실제 데이터가 표시됩니다.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <StatCard label="이번 주 매출(수납)" amount={summary.weekGross} tone="positive" />

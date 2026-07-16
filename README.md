@@ -14,7 +14,6 @@
 | 🧾 **비용** | 지출(매입) 등록, 항목·거래처·계약 연결, 매입세액(공제) 자동 계산 |
 | 🏛️ **부가세 신고** | 과세기간(1기/2기 예정·확정·반기)별 매출세액 − 매입세액 = 납부(환급)세액 자동 계산 |
 | 📊 **대시보드** | 이번 주/달 매출, 미수금·수납률, 예상 부가세, 다가오는 수납 예정 |
-| 🔐 **관리자 로그인** | 단일 비밀번호 인증으로 전체 화면 보호 (미들웨어 기반) |
 
 ## 기술 스택
 
@@ -58,19 +57,12 @@ npm run dev
 2. **Netlify 사이트**를 이 GitHub 저장소에 연결 (Netlify 가 Next.js 를 감지해 자동으로 SSR 런타임 적용)
 3. Netlify **Site settings → Environment variables** 에 등록:
    - `DATABASE_URL` = Supabase 연결 문자열
-   - `ADMIN_PASSWORD` = 관리자 비밀번호 (미설정 시 `931122`)
-   - `AUTH_SECRET` = 임의의 긴 문자열
 4. 배포하면 빌드 시 `prisma db push` 가 Supabase 스키마를 자동 생성한 뒤 `next build` 가 실행됩니다.
    (스키마는 최초 1회 생성되며, 데모 데이터가 필요하면 로컬에서 `DATABASE_URL` 을 Supabase 로 두고 `npm run db:seed` 실행)
 
+> `DATABASE_URL` 이 아직 없어도 사이트는 열립니다(데이터는 빈 상태로 표시되고 대시보드에 안내 배너가 뜹니다).
 > Netlify 함수는 AWS Lambda 위에서 동작하므로 `prisma/schema.prisma` 의 `binaryTargets` 에
 > `rhel-openssl-*` 를 포함해 두었습니다.
-
-### 로그인
-
-- 기본 관리자 비밀번호: **`931122`**
-- `.env` 의 `ADMIN_PASSWORD` 로 변경할 수 있습니다.
-- 세션 쿠키 서명 토큰은 `AUTH_SECRET` 이며, 운영 배포 시 반드시 임의의 긴 문자열로 교체하세요.
 
 ## 스크립트
 

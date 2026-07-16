@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { prisma, safeQuery } from "@/lib/db";
 import { PageHeader, SourceBadge, StatusBadge, TaxBadge } from "@/components/ui";
 import { formatKRW, formatWon, splitVat, toDateStr, type TaxType } from "@/lib/finance";
 import InstallmentList from "./InstallmentList";
@@ -13,13 +13,17 @@ export default async function ContractDetailPage({
 }: {
   params: { id: string };
 }) {
-  const c = await prisma.contract.findUnique({
-    where: { id: params.id },
-    include: {
-      installments: { orderBy: [{ kind: "asc" }, { seq: "asc" }] },
-      expenses: { orderBy: { expenseDate: "desc" } },
-    },
-  });
+  const c = await safeQuery(
+    () =>
+      prisma.contract.findUnique({
+        where: { id: params.id },
+        include: {
+          installments: { orderBy: [{ kind: "asc" }, { seq: "asc" }] },
+          expenses: { orderBy: { expenseDate: "desc" } },
+        },
+      }),
+    null
+  );
   if (!c) notFound();
 
   const received = c.installments

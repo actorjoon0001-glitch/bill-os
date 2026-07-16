@@ -1,15 +1,19 @@
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { prisma, safeQuery } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import ContractsTable from "./ContractsTable";
 
 export const dynamic = "force-dynamic";
 
 export default async function ContractsPage() {
-  const contracts = await prisma.contract.findMany({
-    orderBy: { contractDate: "desc" },
-    include: { installments: { orderBy: [{ kind: "asc" }, { seq: "asc" }] } },
-  });
+  const contracts = await safeQuery(
+    () =>
+      prisma.contract.findMany({
+        orderBy: { contractDate: "desc" },
+        include: { installments: { orderBy: [{ kind: "asc" }, { seq: "asc" }] } },
+      }),
+    []
+  );
 
   const data = contracts.map((c) => {
     const received = c.installments

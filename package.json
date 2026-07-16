@@ -5,7 +5,7 @@
   "description": "세움 통합 플랫폼 정산팀용 정산 OS - 계약/수납/매출/비용/부가세 관리",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push --skip-generate && next build",
+    "build": "prisma generate && node scripts/db-push.mjs && next build",
     "build:local": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",

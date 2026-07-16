@@ -1,0 +1,72 @@
+// 세움 정산 OS - 데이터 모델
+// 계약(수기/전자) → 회차별 납입(계약금/중도금/잔금) → 수납 체크 → 매출/부가세 집계
+// 참고: SQLite 는 native enum 을 지원하지 않으므로 문자열 필드 + 앱 레벨 검증을 사용한다.
+//   source:  MANUAL | ELECTRONIC              (수기 | 전자)
+//   taxType: TAXABLE | ZERO_RATED | EXEMPT    (과세 | 영세율 | 면세)
+//   status:  ACTIVE | COMPLETED | CANCELED    (진행중 | 완납 | 해지)
+//   kind:    DOWN_PAYMENT | INTERIM | BALANCE (계약금 | 중도금 | 잔금)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Contract {
+  id           String   @id @default(cuid())
+  contractNo   String   @unique // 계약번호 (예: C-2026-0001)
+  title        String // 계약명 / 프로젝트명
+  clientName   String // 거래처(고객)명
+  clientBizNo  String? // 사업자등록번호
+  source       String   @default("ELECTRONIC") // 수기 / 전자
+  taxType      String   @default("TAXABLE") // 과세유형
+  status       String   @default("ACTIVE") // 진행 상태
+  totalAmount  Int // 총 계약금액 (부가세 포함, 원 단위)
+  contractDate DateTime // 계약일
+  memo         String?
+  documentName String? // 첨부 계약서 원본 파일명
+  documentPath String? // 저장된 파일 경로(파일명)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  installments Installment[]
+  expenses     Expense[]
+}
+
+model Installment {
+  id             String    @id @default(cuid())
+  contractId     String
+  contract       Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  kind           String // DOWN_PAYMENT | INTERIM | BALANCE
+  label          String // 표시명 (예: "중도금 1차")
+  seq            Int       @default(1) // 회차 순서
+  plannedAmount  Int // 청구(예정) 금액
+  dueDate        DateTime? // 납입 예정일
+  received       Boolean   @default(false) // 수납 완료 체크
+  receivedAmount Int       @default(0) // 실제 수납 금액
+  receivedDate   DateTime? // 실제 수납일
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([contractId])
+  @@index([receivedDate])
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  expenseDate DateTime // 지출일
+  category    String // 비용 항목 (인건비/임차료/외주비/광고선전비 등)
+  vendor      String? // 거래처
+  description String?
+  amount      Int // 지출 금액 (부가세 포함, 원 단위)
+  taxType     String    @default("TAXABLE") // 매입 과세유형 (매입세액 공제 여부)
+  contractId  String? // 특정 계약에 귀속되는 비용이면 연결
+  contract    Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([expenseDate])
+  @@index([contractId])
+}

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       contractDate,
       memo,
       documentName,
-      documentPath,
+      documentId,
       installments,
     } = body as {
       title: string;
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       contractDate: string;
       memo?: string;
       documentName?: string;
-      documentPath?: string;
+      documentId?: string;
       installments?: InstallmentInput[];
     };
 
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         contractDate: new Date(contractDate),
         memo: memo || null,
         documentName: documentName || null,
-        documentPath: documentPath || null,
+        documentId: documentId || null,
         installments: {
           create: (installments ?? []).map((i, idx) => ({
             kind: i.kind,

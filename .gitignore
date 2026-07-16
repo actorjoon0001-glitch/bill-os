@@ -15,15 +15,8 @@ next-env.d.ts
 .env
 .env*.local
 
-# database (sqlite)
-/prisma/*.db
-/prisma/*.db-journal
-/data/dev.db
-/data/*.db-journal
-
-# uploaded contract documents (runtime user data)
-/data/uploads/*
-!/data/uploads/.gitkeep
+# netlify
+.netlify/
 
 # misc
 .DS_Store

@@ -6,25 +6,30 @@ import {
   SESSION_MAX_AGE,
 } from "@/lib/auth";
 
+// 일반 폼 전송(top-level navigation)으로 처리해, 브라우저가 세션 쿠키를
+// 확실히 저장하도록 한다. (fetch/XHR 로 심는 쿠키를 막는 환경 대응)
 export async function POST(req: NextRequest) {
-  try {
-    const { password } = (await req.json()) as { password?: string };
-    if (!password || password !== ADMIN_PASSWORD) {
-      return NextResponse.json(
-        { error: "비밀번호가 올바르지 않습니다." },
-        { status: 401 }
-      );
-    }
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(AUTH_COOKIE, SESSION_TOKEN, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,
-      secure: process.env.NODE_ENV === "production",
-    });
-    return res;
-  } catch {
-    return NextResponse.json({ error: "로그인 처리 실패" }, { status: 500 });
+  const form = await req.formData().catch(() => null);
+  const password = String(form?.get("password") ?? "").trim();
+  let from = String(form?.get("from") ?? "/");
+  if (!from.startsWith("/") || from.startsWith("/login")) from = "/";
+
+  // 비밀번호 불일치 → 로그인 화면으로 되돌리며 에러 표시
+  if (!password || password !== ADMIN_PASSWORD) {
+    const url = new URL("/login", req.url);
+    url.searchParams.set("error", "1");
+    if (from !== "/") url.searchParams.set("from", from);
+    return NextResponse.redirect(url, 303);
   }
+
+  // 성공 → 세션 쿠키를 심고 목적지로 이동
+  const res = NextResponse.redirect(new URL(from, req.url), 303);
+  res.cookies.set(AUTH_COOKIE, SESSION_TOKEN, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+    secure: process.env.NODE_ENV === "production",
+  });
+  return res;
 }

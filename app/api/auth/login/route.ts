@@ -23,13 +23,16 @@ export async function POST(req: NextRequest) {
   }
 
   // 성공 → 세션 쿠키를 심고 목적지로 이동
+  // 포털 내장 브라우저/iframe(교차 사이트) 에서도 쿠키가 저장되도록
+  // 운영(HTTPS)에서는 SameSite=None; Secure 를 사용한다.
+  const isProd = process.env.NODE_ENV === "production";
   const res = NextResponse.redirect(new URL(from, req.url), 303);
   res.cookies.set(AUTH_COOKIE, SESSION_TOKEN, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProd,
   });
   return res;
 }

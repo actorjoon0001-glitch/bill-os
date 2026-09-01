@@ -7,9 +7,12 @@ export type EContractRow = {
   clientName: string; // 건축주
   siteAddress: string; // 현장주소
   contractDate: string; // 계약일자
-  productTotal: number; // 제품합계 (만원, 부가세 포함)
+  productTotal: number; // 제품합계 = 계약 총액 (만원, 부가세 포함)
   supply: number; // 공급가액 (만원, 부가세 제외)
+  vat: number; // 부가세 (만원)
   downPayment: number; // 계약금 (만원)
+  interim: number; // 중도금 합계 (만원, 중도금1~3)
+  balance: number; // 잔금 (만원)
   salesperson: string; // 영업사원
   showroom: string; // 전시장
   permitType: string; // 인허가 종류 코드 (permit/temporary 등)
@@ -52,6 +55,11 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
     "salesperson",
     "downPayment:data->amounts->>downPayment",
     "supply:data->amounts->>productSupply",
+    "vat:data->amounts->>vat",
+    "interim1:data->amounts->>interim1",
+    "interim2:data->amounts->>interim2",
+    "interim3:data->amounts->>interim3",
+    "balance:data->amounts->>balance",
     "permitType:data->>permitType",
     "ownerName:data->>ownerName",
   ].join(",");
@@ -83,7 +91,10 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       productTotal: num(r.total_amount),
       // 공급가액: 원본 값 우선, 없으면 제품합계에서 부가세(10%) 역산
       supply: num(r.supply) || Math.round(num(r.total_amount) / 1.1),
+      vat: num(r.vat) || (num(r.total_amount) - (num(r.supply) || Math.round(num(r.total_amount) / 1.1))),
       downPayment: num(r.downPayment),
+      interim: num(r.interim1) + num(r.interim2) + num(r.interim3),
+      balance: num(r.balance),
       salesperson: String(r.salesperson ?? ""),
       showroom: normalizeShowroom(r.showroom),
       permitType: String(r.permitType ?? ""),

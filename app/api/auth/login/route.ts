@@ -3,6 +3,7 @@ import {
   AUTH_COOKIE,
   SESSION_SECRET,
   SESSION_MAX_AGE,
+  REMEMBER_MAX_AGE,
   ALLOWED_TEAMS,
   ADMIN_EMAILS,
   supabaseAuthBase,
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
   const password = String(form?.get("password") ?? "");
   let from = String(form?.get("from") ?? "/");
   if (!from.startsWith("/") || from.startsWith("/login")) from = "/";
+  const remember = form?.get("remember") != null; // 자동 로그인 체크 여부
   const extra: Record<string, string> = from !== "/" ? { from } : {};
 
   if (!authConfigured()) return redirectLogin(req, { error: "config", ...extra });
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
     sameSite: isProd ? "none" : "lax",
     secure: isProd,
     path: "/",
-    maxAge: SESSION_MAX_AGE,
+    maxAge: remember ? REMEMBER_MAX_AGE : SESSION_MAX_AGE,
   });
   return res;
 }

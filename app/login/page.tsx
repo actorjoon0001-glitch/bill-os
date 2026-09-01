@@ -1,3 +1,5 @@
+import RememberEmail from "./RememberEmail";
+
 export const dynamic = "force-dynamic";
 
 export default function LoginPage({
@@ -56,11 +58,22 @@ export default function LoginPage({
                 autoComplete="current-password"
               />
             </div>
+            <label className="flex items-center gap-2 text-sm text-slate-600 select-none cursor-pointer">
+              <input
+                id="remember"
+                name="remember"
+                type="checkbox"
+                defaultChecked
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              자동 로그인 (로그인 상태 유지)
+            </label>
             {message && <div className="text-sm text-red-600">{message}</div>}
             <button type="submit" className="btn-primary w-full">
               로그인
             </button>
           </form>
+          <RememberEmail />
         </div>
         <p className="mt-4 text-center text-xs text-slate-400">
           세움 플랫폼 계정으로 로그인합니다 · 정산팀/경영팀 및 관리자만 접근할 수 있습니다.

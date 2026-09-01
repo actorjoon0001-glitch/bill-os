@@ -7,8 +7,10 @@ export const AUTH_COOKIE = "seum_session";
 export const SESSION_SECRET =
   process.env.AUTH_SECRET || "seeum-settlement-os-session-v1";
 
-// 쿠키 유효기간(초): 12시간
+// 쿠키 유효기간(초): 기본 12시간
 export const SESSION_MAX_AGE = 60 * 60 * 12;
+// 자동 로그인(로그인 상태 유지) 시: 30일
+export const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30;
 
 // 로그인 허용 팀(employees.team). 기본: 정산 + 경영.
 export const ALLOWED_TEAMS = (process.env.ALLOWED_TEAMS || "정산,경영")

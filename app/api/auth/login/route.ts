@@ -1,38 +1,89 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ADMIN_PASSWORD,
   AUTH_COOKIE,
-  SESSION_TOKEN,
+  SESSION_SECRET,
   SESSION_MAX_AGE,
+  ALLOWED_TEAMS,
+  ADMIN_EMAILS,
+  supabaseAuthBase,
+  supabaseRest,
+  supabaseKey,
+  authConfigured,
 } from "@/lib/auth";
+import { signSession } from "@/lib/session";
 
-// 일반 폼 전송(top-level navigation)으로 처리해, 브라우저가 세션 쿠키를
-// 확실히 저장하도록 한다. (fetch/XHR 로 심는 쿠키를 막는 환경 대응)
+function redirectLogin(req: NextRequest, params: Record<string, string>) {
+  const url = new URL("/login", req.url);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return NextResponse.redirect(url, 303);
+}
+
 export async function POST(req: NextRequest) {
   const form = await req.formData().catch(() => null);
-  const password = String(form?.get("password") ?? "").trim();
+  const email = String(form?.get("email") ?? "").trim().toLowerCase();
+  const password = String(form?.get("password") ?? "");
   let from = String(form?.get("from") ?? "/");
   if (!from.startsWith("/") || from.startsWith("/login")) from = "/";
+  const extra: Record<string, string> = from !== "/" ? { from } : {};
 
-  // 비밀번호 불일치 → 로그인 화면으로 되돌리며 에러 표시
-  if (!password || password !== ADMIN_PASSWORD) {
-    const url = new URL("/login", req.url);
-    url.searchParams.set("error", "1");
-    if (from !== "/") url.searchParams.set("from", from);
-    return NextResponse.redirect(url, 303);
+  if (!authConfigured()) return redirectLogin(req, { error: "config", ...extra });
+  if (!email || !password) return redirectLogin(req, { error: "cred", ...extra });
+
+  // 1) 세움 Supabase Auth 로 이메일/비밀번호 검증
+  let authOk = false;
+  try {
+    const r = await fetch(
+      `${supabaseAuthBase()}/auth/v1/token?grant_type=password`,
+      {
+        method: "POST",
+        headers: { apikey: supabaseKey(), "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      }
+    );
+    authOk = r.ok;
+  } catch {
+    authOk = false;
   }
+  if (!authOk) return redirectLogin(req, { error: "cred", ...extra });
 
-  // 성공 → 세션 쿠키를 심고 목적지로 이동
-  // 포털 내장 브라우저/iframe(교차 사이트) 에서도 쿠키가 저장되도록
-  // 운영(HTTPS)에서는 SameSite=None; Secure 를 사용한다.
+  // 2) 접근 권한: 관리자 이메일이거나, employees 의 승인된 정산/경영팀
+  let allowed = ADMIN_EMAILS.includes(email);
+  if (!allowed) {
+    try {
+      const params = new URLSearchParams();
+      params.set("select", "team,status");
+      params.set("email", `ilike.${email}`); // 대소문자 무시 정확 일치
+      params.set("limit", "1");
+      const r = await fetch(`${supabaseRest()}/employees?${params.toString()}`, {
+        headers: {
+          apikey: supabaseKey(),
+          Authorization: `Bearer ${supabaseKey()}`,
+        },
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const rows = (await r.json()) as Array<{ team?: string; status?: string }>;
+        const emp = rows?.[0];
+        if (emp && emp.status === "approved" && ALLOWED_TEAMS.includes(emp.team || "")) {
+          allowed = true;
+        }
+      }
+    } catch {
+      /* ignore → allowed 유지(false) */
+    }
+  }
+  if (!allowed) return redirectLogin(req, { error: "perm", ...extra });
+
+  // 3) 서명된 세션 쿠키 발급 후 이동
   const isProd = process.env.NODE_ENV === "production";
+  const token = await signSession(email, SESSION_SECRET);
   const res = NextResponse.redirect(new URL(from, req.url), 303);
-  res.cookies.set(AUTH_COOKIE, SESSION_TOKEN, {
+  res.cookies.set(AUTH_COOKIE, token, {
     httpOnly: true,
     sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     path: "/",
     maxAge: SESSION_MAX_AGE,
-    secure: isProd,
   });
   return res;
 }

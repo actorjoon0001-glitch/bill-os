@@ -20,6 +20,8 @@ const splitReps = (s: string) =>
 
 const DEFAULT_RATE = 1.0; // 기본 인센티브 요율 (%)
 const STORE_KEY = "seum_incentive_rates";
+const PAID_KEY = "seum_incentive_paid";
+const MEMO_KEY = "seum_incentive_memo";
 
 type Agg = {
   name: string;
@@ -32,12 +34,18 @@ type Agg = {
 export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
   const [month, setMonth] = useState("ALL");
   const [rates, setRates] = useState<Record<string, number>>({});
+  const [paid, setPaid] = useState<Record<string, boolean>>({});
+  const [memos, setMemos] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) setRates(JSON.parse(raw));
+      const r = localStorage.getItem(STORE_KEY);
+      if (r) setRates(JSON.parse(r));
+      const p = localStorage.getItem(PAID_KEY);
+      if (p) setPaid(JSON.parse(p));
+      const mm = localStorage.getItem(MEMO_KEY);
+      if (mm) setMemos(JSON.parse(mm));
     } catch {
       /* 무시 */
     }
@@ -48,6 +56,31 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
       const next = { ...prev, [name]: value };
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(next));
+      } catch {
+        /* 무시 */
+      }
+      return next;
+    });
+  };
+
+  // 지급여부·메모는 정산 기간(월 필터)별로 분리 저장한다.
+  const keyOf = (name: string) => `${month}::${name}`;
+  const setPaidState = (name: string, value: boolean) => {
+    setPaid((prev) => {
+      const next = { ...prev, [keyOf(name)]: value };
+      try {
+        localStorage.setItem(PAID_KEY, JSON.stringify(next));
+      } catch {
+        /* 무시 */
+      }
+      return next;
+    });
+  };
+  const setMemo = (name: string, value: string) => {
+    setMemos((prev) => {
+      const next = { ...prev, [keyOf(name)]: value };
+      try {
+        localStorage.setItem(MEMO_KEY, JSON.stringify(next));
       } catch {
         /* 무시 */
       }
@@ -135,7 +168,7 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="th">영업사원</th>
@@ -144,6 +177,8 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                 <th className="th text-right">공급가액 합계</th>
                 <th className="th text-center">요율(%)</th>
                 <th className="th text-right">인센티브</th>
+                <th className="th text-center">지급여부</th>
+                <th className="th">메모</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -188,10 +223,36 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                       <td className="td text-right tabular-nums font-semibold text-emerald-600">
                         {fmtMan(incentiveOf(a))}
                       </td>
+                      <td className="td text-center">
+                        <label className="inline-flex items-center justify-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(paid[keyOf(a.name)])}
+                            onChange={(e) => setPaidState(a.name, e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span
+                            className={`ml-1.5 text-xs ${
+                              paid[keyOf(a.name)] ? "text-emerald-600 font-medium" : "text-slate-400"
+                            }`}
+                          >
+                            {paid[keyOf(a.name)] ? "지급완료" : "미지급"}
+                          </span>
+                        </label>
+                      </td>
+                      <td className="td">
+                        <input
+                          type="text"
+                          value={memos[keyOf(a.name)] || ""}
+                          onChange={(e) => setMemo(a.name, e.target.value)}
+                          placeholder="메모"
+                          className="input py-1 min-w-[140px]"
+                        />
+                      </td>
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={6} className="bg-slate-50/70 px-4 py-3">
+                        <td colSpan={8} className="bg-slate-50/70 px-4 py-3">
                           <div className="text-xs font-semibold text-slate-500 mb-2">
                             {a.name} · 계약 {a.count}건
                           </div>
@@ -263,6 +324,10 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                 <td className="td text-right tabular-nums font-bold text-emerald-600">
                   {fmtMan(totalIncentive)}
                 </td>
+                <td className="td text-center text-xs text-slate-400 tabular-nums">
+                  {aggs.filter((a) => paid[keyOf(a.name)]).length}/{aggs.length} 지급
+                </td>
+                <td className="td"></td>
               </tr>
             </tfoot>
           </table>

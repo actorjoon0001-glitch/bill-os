@@ -24,6 +24,13 @@ export function isEContractConfigured(): boolean {
   return Boolean(process.env.ECONTRACT_API_URL && process.env.ECONTRACT_API_KEY);
 }
 
+// 전시장 이름 정리: 본사/본점/본사전시장 → '본사 전시장' 으로 통합
+export function normalizeShowroom(name: unknown): string {
+  const s = String(name ?? "").trim();
+  if (["본사", "본점", "본사전시장", "본사 전시장"].includes(s)) return "본사 전시장";
+  return s;
+}
+
 export function permitLabel(code: string): string {
   if (code === "permit") return "인허가";
   if (code === "temporary") return "가설축조";
@@ -78,7 +85,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       supply: num(r.supply) || Math.round(num(r.total_amount) / 1.1),
       downPayment: num(r.downPayment),
       salesperson: String(r.salesperson ?? ""),
-      showroom: String(r.showroom ?? ""),
+      showroom: normalizeShowroom(r.showroom),
       permitType: String(r.permitType ?? ""),
     }))
     .filter((r) => r.downPayment > 0);

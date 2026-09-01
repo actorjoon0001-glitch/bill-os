@@ -4,7 +4,7 @@ import Nav from "@/components/Nav";
 
 export const metadata: Metadata = {
   title: "세움 정산 OS",
-  description: "계약·수납·매출·비용·부가세를 한 곳에서 관리하는 정산팀 전용 시스템",
+  description: "계약·수납·매출·비용·부가세를 한 곳에서 관리하는 경영지원팀 전용 시스템",
 };
 
 export default function RootLayout({

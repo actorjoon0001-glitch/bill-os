@@ -59,7 +59,7 @@ export default function Nav() {
         </button>
       </div>
       <div className="mt-3 px-3 text-[11px] leading-relaxed text-slate-400">
-        정산팀 전용 · 계약금/중도금/잔금 수납, 주·월 매출, 부가세 신고를 한 곳에서
+        경영지원팀 전용 · 계약금/중도금/잔금 수납, 주·월 매출, 부가세 신고를 한 곳에서
         관리합니다.
       </div>
     </aside>

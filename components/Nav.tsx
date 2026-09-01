@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const links = [
   { href: "/", label: "대시보드", icon: "📊" },
+  { href: "/econtracts", label: "전자계약서 계약", icon: "🔗" },
   { href: "/contracts", label: "계약 관리", icon: "📄" },
   { href: "/revenue", label: "매출", icon: "📈" },
   { href: "/expenses", label: "비용", icon: "🧾" },

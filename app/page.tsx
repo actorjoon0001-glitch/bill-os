@@ -1,143 +1,204 @@
 import Link from "next/link";
-import { dashboardSummary, monthlyRevenue } from "@/lib/reports";
-import { prisma, safeQuery, isDbReady } from "@/lib/db";
-import { PageHeader, StatCard, SourceBadge, StatusBadge } from "@/components/ui";
-import { formatKRW, toDateStr, INSTALLMENT_KIND_LABEL } from "@/lib/finance";
+import { PageHeader } from "@/components/ui";
+import {
+  fetchCompletedContracts,
+  isEContractConfigured,
+  type EContractRow,
+} from "@/lib/econtracts";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const [summary, months, upcoming] = await Promise.all([
-    dashboardSummary(),
-    monthlyRevenue(6),
-    safeQuery(
-      () =>
-        prisma.installment.findMany({
-          where: { received: false, dueDate: { not: null } },
-          include: {
-            contract: { select: { contractNo: true, title: true, clientName: true } },
-          },
-          orderBy: { dueDate: "asc" },
-          take: 6,
-        }),
-      []
-    ),
-  ]);
+const fmtMan = (n: number) => Math.round(n).toLocaleString("ko-KR");
+const monthOf = (d: string) => (d || "").slice(0, 7);
+const monthLabel = (m: string) => {
+  const [y, mo] = m.split("-");
+  return y && mo ? `${y}.${mo}` : m || "-";
+};
 
-  const dbReady = await isDbReady();
-  const maxMonth = Math.max(1, ...months.map((m) => m.gross));
-  const collectRate =
-    summary.contractTotal > 0
-      ? Math.round((summary.receivedTotal / summary.contractTotal) * 100)
-      : 0;
+export default async function DashboardPage() {
+  const configured = isEContractConfigured();
+  let rows: EContractRow[] = [];
+  let error: string | null = null;
+  if (configured) {
+    try {
+      rows = await fetchCompletedContracts();
+    } catch (e) {
+      error = e instanceof Error ? e.message : "전자계약서 조회 중 오류가 발생했습니다.";
+    }
+  }
+
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const totalCount = rows.length;
+  const totalDown = rows.reduce((s, r) => s + r.downPayment, 0);
+  const totalRevenue = rows.reduce((s, r) => s + r.productTotal, 0);
+  const thisMonthRows = rows.filter((r) => monthOf(r.contractDate) === thisMonth);
+  const thisMonthDown = thisMonthRows.reduce((s, r) => s + r.downPayment, 0);
+
+  // 월별 추이 (최근 8개월)
+  const mMap = new Map<string, { count: number; down: number; revenue: number }>();
+  for (const r of rows) {
+    const k = monthOf(r.contractDate) || "(미지정)";
+    const c = mMap.get(k) || { count: 0, down: 0, revenue: 0 };
+    c.count += 1;
+    c.down += r.downPayment;
+    c.revenue += r.productTotal;
+    mMap.set(k, c);
+  }
+  const monthly = Array.from(mMap.entries())
+    .map(([month, v]) => ({ month, ...v }))
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .slice(0, 8);
+  const maxRev = Math.max(1, ...monthly.map((m) => m.revenue));
+
+  // 전시장별 요약
+  const sMap = new Map<string, { count: number; down: number; revenue: number }>();
+  for (const r of rows) {
+    const k = r.showroom || "(미지정)";
+    const c = sMap.get(k) || { count: 0, down: 0, revenue: 0 };
+    c.count += 1;
+    c.down += r.downPayment;
+    c.revenue += r.productTotal;
+    sMap.set(k, c);
+  }
+  const showrooms = Array.from(sMap.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.revenue - a.revenue);
 
   return (
     <div>
       <PageHeader
         title="정산 대시보드"
-        desc={`오늘 ${toDateStr(new Date())} 기준 · 진행중 계약 ${summary.activeCount}건`}
+        desc={`오늘 ${now.toISOString().slice(0, 10)} 기준 · 전자계약서 계약완료 ${totalCount}건`}
         action={
-          <Link href="/contracts/new" className="btn-primary">
-            + 계약 등록
+          <Link href="/econtracts" className="btn-primary">
+            전자계약서 계약 보기
           </Link>
         }
       />
 
-      {!dbReady && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <b>데이터베이스가 아직 연결되지 않았습니다.</b> 화면은 정상이지만 데이터는
-          비어 있습니다. Netlify 환경변수에 <code>DATABASE_URL</code>(Supabase)을 등록하고
-          재배포하면 실제 데이터가 표시됩니다.
+      {!configured ? (
+        <div className="card p-6 text-sm text-slate-600 leading-relaxed">
+          <div className="font-semibold text-slate-800 mb-2">전자계약서 연동 설정이 필요합니다</div>
+          Netlify 환경변수에 <code className="text-brand-600">ECONTRACT_API_URL</code>,{" "}
+          <code className="text-brand-600">ECONTRACT_API_KEY</code> 를 등록하고 재배포하면
+          대시보드에 실제 데이터가 표시됩니다.
         </div>
-      )}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard label="이번 주 매출(수납)" amount={summary.weekGross} tone="positive" />
-        <StatCard label="이번 달 매출(수납)" amount={summary.monthGross} tone="positive" />
-        <StatCard
-          label="미수금(미수납 예정액)"
-          amount={summary.outstanding}
-          tone="warning"
-          sub={`수납률 ${collectRate}%`}
-        />
-        <StatCard
-          label={`예상 부가세 · ${summary.vatHalfLabel}`}
-          amount={summary.vatPayable}
-          tone={summary.vatPayable >= 0 ? "danger" : "default"}
-          sub={summary.vatPayable >= 0 ? "납부 예상" : "환급 예상"}
-        />
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        {/* 월별 매출 추이 */}
-        <div className="card p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-800">월별 매출 추이</h2>
-            <Link href="/revenue" className="text-xs text-brand-600 hover:underline">
-              전체 보기 →
-            </Link>
+      ) : error ? (
+        <div className="card p-6">
+          <div className="text-sm font-semibold text-red-600 mb-1">
+            데이터를 불러오지 못했습니다
           </div>
-          {months.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">
-              수납된 매출 데이터가 없습니다.
-            </p>
-          ) : (
-            <div className="space-y-2.5">
-              {[...months].reverse().map((m) => (
-                <div key={m.key} className="flex items-center gap-3">
-                  <div className="w-20 text-xs text-slate-500 shrink-0">{m.key}</div>
-                  <div className="flex-1 bg-slate-100 rounded-full h-6 overflow-hidden">
-                    <div
-                      className="h-full bg-brand-500 rounded-full flex items-center justify-end pr-2"
-                      style={{ width: `${Math.max(6, (m.gross / maxMonth) * 100)}%` }}
-                    >
-                      <span className="text-[11px] font-medium text-white tabular-nums">
-                        {formatKRW(m.gross)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="text-xs text-slate-500 break-all">{error}</div>
+        </div>
+      ) : (
+        <>
+          {/* KPI */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="card p-4">
+              <div className="text-xs text-slate-400">계약완료 건수 (누적)</div>
+              <div className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">
+                {totalCount.toLocaleString("ko-KR")}건
+              </div>
             </div>
-          )}
-        </div>
+            <div className="card p-4">
+              <div className="text-xs text-slate-400">계약금 합계 (누적)</div>
+              <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                {fmtMan(totalDown)}
+                <span className="text-sm font-medium text-slate-400"> 만원</span>
+              </div>
+            </div>
+            <div className="card p-4">
+              <div className="text-xs text-slate-400">계약 매출 합계 (제품합계)</div>
+              <div className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">
+                {fmtMan(totalRevenue)}
+                <span className="text-sm font-medium text-slate-400"> 만원</span>
+              </div>
+            </div>
+            <div className="card p-4">
+              <div className="text-xs text-slate-400">
+                이번 달 계약금 · {monthLabel(thisMonth)}
+              </div>
+              <div className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">
+                {fmtMan(thisMonthDown)}
+                <span className="text-sm font-medium text-slate-400"> 만원</span>
+              </div>
+              <div className="mt-1 text-xs text-slate-400">계약완료 {thisMonthRows.length}건</div>
+            </div>
+          </div>
 
-        {/* 다가오는 수납 예정 */}
-        <div className="card p-5">
-          <h2 className="font-semibold text-slate-800 mb-4">다가오는 수납 예정</h2>
-          {upcoming.length === 0 ? (
-            <p className="text-sm text-slate-400 py-6 text-center">예정된 수납이 없습니다.</p>
-          ) : (
-            <ul className="space-y-3">
-              {upcoming.map((i) => (
-                <li key={i.id}>
-                  <Link
-                    href={`/contracts`}
-                    className="block hover:bg-slate-50 -mx-2 px-2 py-1.5 rounded-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-700 truncate">
-                        {i.contract.clientName}
-                      </span>
-                      <span className="text-xs text-slate-400 shrink-0 ml-2">
-                        {toDateStr(i.dueDate)}
-                      </span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 월별 추이 */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-semibold text-slate-800">월별 계약 추이</div>
+                <div className="text-xs text-slate-400">단위: 만원 · 계약일 기준</div>
+              </div>
+              {monthly.length === 0 ? (
+                <div className="text-sm text-slate-400 py-8 text-center">데이터가 없습니다.</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {monthly.map((m) => (
+                    <div key={m.month} className="flex items-center gap-3">
+                      <div className="w-14 text-xs text-slate-500 tabular-nums">
+                        {monthLabel(m.month)}
+                      </div>
+                      <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+                        <div
+                          className="h-full bg-brand-500 rounded-full"
+                          style={{ width: `${(m.revenue / maxRev) * 100}%` }}
+                        />
+                      </div>
+                      <div className="w-24 text-right text-xs tabular-nums text-slate-700">
+                        {fmtMan(m.revenue)}
+                      </div>
+                      <div className="w-10 text-right text-xs tabular-nums text-slate-400">
+                        {m.count}건
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-xs text-slate-500">
-                        {INSTALLMENT_KIND_LABEL[i.kind]} · {i.label}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-800 tabular-nums">
-                        {formatKRW(i.plannedAmount)}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 전시장별 요약 */}
+            <div className="card overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-100 font-semibold text-slate-800">
+                전시장별 요약
+              </div>
+              {showrooms.length === 0 ? (
+                <div className="text-sm text-slate-400 py-8 text-center">데이터가 없습니다.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-5 py-2 text-left font-medium">전시장</th>
+                        <th className="px-5 py-2 text-right font-medium">건수</th>
+                        <th className="px-5 py-2 text-right font-medium">계약금</th>
+                        <th className="px-5 py-2 text-right font-medium">매출</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {showrooms.map((s) => (
+                        <tr key={s.name} className="hover:bg-slate-50/60">
+                          <td className="px-5 py-2 font-medium text-slate-700">{s.name}</td>
+                          <td className="px-5 py-2 text-right tabular-nums">{s.count}건</td>
+                          <td className="px-5 py-2 text-right tabular-nums text-emerald-600">
+                            {fmtMan(s.down)}
+                          </td>
+                          <td className="px-5 py-2 text-right tabular-nums">{fmtMan(s.revenue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

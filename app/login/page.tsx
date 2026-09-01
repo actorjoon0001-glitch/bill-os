@@ -76,7 +76,7 @@ export default function LoginPage({
           <RememberEmail />
         </div>
         <p className="mt-4 text-center text-xs text-slate-400">
-          세움 플랫폼 계정으로 로그인합니다 · 정산팀/경영팀 및 관리자만 접근할 수 있습니다.
+          세움 플랫폼 계정으로 로그인합니다 · 정산팀과 경영팀만 접근할 수 있습니다.
         </p>
       </div>
     </div>

@@ -188,15 +188,21 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px]">
+            <table className="w-full min-w-[1280px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="th">계약번호</th>
-                  <th className="th">건축주 / 현장주소</th>
-                  <th className="th">전시장 / 영업사원</th>
+                  <th className="th">건축주</th>
+                  <th className="th">현장주소</th>
+                  <th className="th">전시장</th>
+                  <th className="th">영업사원</th>
                   <th className="th text-center">인허가</th>
-                  <th className="th text-right">제품합계</th>
+                  <th className="th text-right">공급가액</th>
+                  <th className="th text-right">부가세</th>
+                  <th className="th text-right">계약 총액</th>
                   <th className="th text-right">계약금</th>
+                  <th className="th text-right">중도금</th>
+                  <th className="th text-right">잔금</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -206,24 +212,36 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
                       <div className="font-medium text-slate-800">{r.contractNo}</div>
                       <div className="text-xs text-slate-400">{r.contractDate}</div>
                     </td>
-                    <td className="td">
-                      <div className="font-medium text-slate-800">{r.clientName || "-"}</div>
-                      <div className="text-xs text-slate-500">{r.siteAddress}</div>
+                    <td className="td font-medium text-slate-800 whitespace-nowrap">
+                      {r.clientName || "-"}
                     </td>
-                    <td className="td">
-                      <div className="text-slate-700">{r.showroom || "-"}</div>
-                      <div className="text-xs text-slate-500">{r.salesperson || "-"}</div>
+                    <td className="td text-sm text-slate-600">{r.siteAddress || "-"}</td>
+                    <td className="td text-sm text-slate-700 whitespace-nowrap">
+                      {r.showroom || "-"}
+                    </td>
+                    <td className="td text-sm text-slate-700 whitespace-nowrap">
+                      {r.salesperson || "-"}
                     </td>
                     <td className="td text-center">
                       <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                         {permitLabel(r.permitType)}
                       </span>
                     </td>
+                    <td className="td text-right tabular-nums">{fmtMan(r.supply)}</td>
+                    <td className="td text-right tabular-nums text-slate-500">
+                      {fmtMan(r.vat)}
+                    </td>
                     <td className="td text-right font-semibold tabular-nums">
                       {fmtMan(r.productTotal)}
                     </td>
-                    <td className="td text-right font-semibold tabular-nums text-emerald-600">
+                    <td className="td text-right tabular-nums text-emerald-600 font-medium">
                       {fmtMan(r.downPayment)}
+                    </td>
+                    <td className="td text-right tabular-nums">
+                      {r.interim ? fmtMan(r.interim) : "-"}
+                    </td>
+                    <td className="td text-right tabular-nums">
+                      {r.balance ? fmtMan(r.balance) : "-"}
                     </td>
                   </tr>
                 ))}

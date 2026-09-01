@@ -18,7 +18,7 @@ export default function RootLayout({
         <div className="flex min-h-screen">
           <Nav />
           <main className="flex-1 min-w-0">
-            <div className="mx-auto max-w-6xl px-5 py-6 md:px-8 md:py-8">
+            <div className="mx-auto max-w-[1800px] px-5 py-6 md:px-8 md:py-8">
               {children}
             </div>
           </main>

@@ -353,22 +353,42 @@ export default function EContractsTable({
                       </td>
                       {PAYMENTS.map((p) => {
                         const cell = m.extra?.[p.key] || {};
+                        // 추가금1·2는 계약의 기타비용(추가금)에서 자동 채움 (만원→원)
+                        let autoAmt = "";
+                        let autoMemo = "";
+                        if (p.key === "add1" || p.key === "add2") {
+                          const ec = r.extraCosts.filter((x) => num(x.amount) > 0)[
+                            p.key === "add1" ? 0 : 1
+                          ];
+                          if (ec) {
+                            autoAmt = String(num(ec.amount) * 10000);
+                            autoMemo = ec.name;
+                          }
+                        }
+                        const hasAmt = cell.amt !== undefined && cell.amt !== "";
+                        const hasMemo = cell.memo !== undefined && cell.memo !== "";
+                        const isAuto = !hasAmt && !!autoAmt; // 자동값 표시 중
+                        const amtClass = cell.taxed
+                          ? "text-red-600 font-semibold"
+                          : isAuto
+                          ? "text-blue-600 font-semibold"
+                          : "";
                         return (
                           <td key={p.key} className="td align-top">
                             <div className="flex flex-col gap-1 w-36">
                               <input
-                                value={cell.amt || ""}
+                                value={hasAmt ? cell.amt || "" : autoAmt}
                                 onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
                                 placeholder="금액"
-                                className={`input py-1 w-full text-right ${
-                                  cell.taxed ? "text-red-600 font-semibold" : ""
-                                }`}
+                                className={`input py-1 w-full text-right ${amtClass}`}
                               />
                               <input
-                                value={cell.memo || ""}
+                                value={hasMemo ? cell.memo || "" : autoMemo}
                                 onChange={(e) => setExtra(r.contractNo, p.key, "memo", e.target.value)}
                                 placeholder="메모(예: 8/14 입금)"
-                                className="input py-1 w-full text-xs"
+                                className={`input py-1 w-full text-xs ${
+                                  !hasMemo && autoMemo ? "text-blue-600" : ""
+                                }`}
                               />
                               <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer select-none">
                                 <input

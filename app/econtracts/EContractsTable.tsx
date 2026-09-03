@@ -353,16 +353,15 @@ export default function EContractsTable({
                       </td>
                       {PAYMENTS.map((p) => {
                         const cell = m.extra?.[p.key] || {};
-                        // 추가금1·2는 계약의 기타비용(추가금)에서 자동 채움 (만원→원)
+                        // 추가금1·2는 계약의 '추가 사항·변경 이력'(history, 계약 후 추가 수납)에서
+                        // 항목이 있을 때만 자동 채움 (만원→원). 기타비용(extraCosts)은 총액에만 포함.
                         let autoAmt = "";
                         let autoMemo = "";
                         if (p.key === "add1" || p.key === "add2") {
-                          const ec = r.extraCosts.filter((x) => num(x.amount) > 0)[
-                            p.key === "add1" ? 0 : 1
-                          ];
-                          if (ec) {
-                            autoAmt = String(num(ec.amount) * 10000);
-                            autoMemo = ec.name;
+                          const h = r.history[p.key === "add1" ? 0 : 1];
+                          if (h) {
+                            autoAmt = String(h.amount * 10000);
+                            autoMemo = [h.text, h.method].filter(Boolean).join(" · ");
                           }
                         }
                         const hasAmt = cell.amt !== undefined && cell.amt !== "";

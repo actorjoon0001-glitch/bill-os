@@ -21,8 +21,9 @@ export type EContractRow = {
   pyeong: string; // 계약평수 (품목에서 산출, 예: '19평 포치6평')
   moveType: string; // 현장/이동 구분
   items: { name: string; unit: string; area: string; amount: string }[]; // 주문내용(상세용)
-  extraCosts: { name: string; amount: string }[]; // 기타 비용
+  extraCosts: { name: string; amount: string }[]; // 기타 비용(원본 계약 총액에 포함)
   extraNotes: string; // 서비스·기타 내용
+  history: { amount: number; text: string; method: string }[]; // 추가 사항·변경 이력(계약 후 추가 수납)
 };
 
 const num = (v: unknown) => {
@@ -111,6 +112,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
     "items:data->items",
     "extraCosts:data->extraCosts",
     "extraNotes:data->>extraNotes",
+    "history:data->history",
   ].join(",");
 
   const params = new URLSearchParams();
@@ -167,6 +169,15 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
             .map((x) => ({ name: String(x.name ?? ""), amount: String(x.amount ?? "") }))
         : [],
       extraNotes: String(r.extraNotes ?? ""),
+      history: Array.isArray(r.history)
+        ? (r.history as any[])
+            .filter((h) => !h?.deleted && num(h?.amount) > 0)
+            .map((h) => ({
+              amount: num(h.amount),
+              text: String(h.text ?? ""),
+              method: String(h.method ?? ""),
+            }))
+        : [],
     }))
     .filter((r) => r.downPayment > 0);
 }

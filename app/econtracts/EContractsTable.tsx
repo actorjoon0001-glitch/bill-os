@@ -218,7 +218,7 @@ export default function EContractsTable({
                   <th className="th whitespace-nowrap">계약일</th>
                   <th className="th whitespace-nowrap">건축주</th>
                   <th className="th whitespace-nowrap">계약평수</th>
-                  <th className="th text-center">현장/이동</th>
+                  <th className="th text-center whitespace-nowrap">현장/이동</th>
                   <th className="th">지역</th>
                   <th className="th whitespace-nowrap">연락처</th>
                   <th className="th text-right whitespace-nowrap">계약금액(부가세 포함)</th>
@@ -265,10 +265,10 @@ export default function EContractsTable({
                         {r.clientName || "-"}
                       </td>
                       <td className="td text-slate-600 whitespace-nowrap">{r.pyeong || "-"}</td>
-                      <td className="td text-center">
+                      <td className="td text-center whitespace-nowrap">
                         {r.moveType ? (
                           <span
-                            className={`inline-block rounded-full px-2 py-0.5 text-xs ${
+                            className={`inline-block rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${
                               r.moveType === "이동"
                                 ? "bg-amber-100 text-amber-700"
                                 : "bg-sky-100 text-sky-700"

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui";
-import type { EContractRow } from "@/lib/econtracts";
+import { permitLabel, type EContractRow } from "@/lib/econtracts";
 
 const fmtMan = (n: number) => n.toLocaleString("ko-KR");
 const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR"); // 만원 → 원
@@ -24,6 +24,7 @@ type Manual = {
 
 // 돈 받을 때마다 기입하는 수납 항목 (금액 + 메모)
 const PAYMENTS = [
+  { key: "deposit", label: "계약금" },
   { key: "mid1", label: "중도금1" },
   { key: "mid2", label: "중도금2" },
   { key: "mid3", label: "중도금3" },
@@ -45,7 +46,13 @@ export default function EContractsTable({
   const [showroom, setShowroom] = useState("ALL");
   const [month, setMonth] = useState("ALL");
   const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
+  const [openNo, setOpenNo] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const num = (v: unknown) => {
+    const n = parseFloat(String(v ?? "").replace(/,/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
 
   const setField = (no: string, field: keyof Manual, value: string) => {
     setManual((prev) => {
@@ -197,7 +204,7 @@ export default function EContractsTable({
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[2600px] text-sm">
+            <table className="w-full min-w-[2800px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="th whitespace-nowrap">계약일</th>
@@ -222,11 +229,29 @@ export default function EContractsTable({
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((r) => {
                   const m = manual[r.contractNo] || {};
+                  const isOpen = openNo === r.contractNo;
                   return (
-                    <tr key={r.contractNo} className="hover:bg-slate-50/40 align-top">
+                    <Fragment key={r.contractNo}>
+                    <tr className={`hover:bg-slate-50/40 align-top ${isOpen ? "bg-brand-50/40" : ""}`}>
                       <td className="td whitespace-nowrap">
-                        <div className="text-slate-700">{r.contractDate}</div>
-                        <div className="text-[11px] text-slate-400">{r.contractNo}</div>
+                        <button
+                          type="button"
+                          onClick={() => setOpenNo(isOpen ? null : r.contractNo)}
+                          className="flex items-center gap-1.5 text-left"
+                          title="계약 상세 열기"
+                        >
+                          <span
+                            className={`inline-block transition-transform text-slate-400 ${
+                              isOpen ? "rotate-90" : ""
+                            }`}
+                          >
+                            ▸
+                          </span>
+                          <span>
+                            <span className="text-slate-700">{r.contractDate}</span>
+                            <span className="block text-[11px] text-slate-400">{r.contractNo}</span>
+                          </span>
+                        </button>
                       </td>
                       <td className="td font-medium text-slate-800">{r.clientName || "-"}</td>
                       <td className="td text-slate-600 whitespace-nowrap">{r.pyeong || "-"}</td>
@@ -312,6 +337,100 @@ export default function EContractsTable({
                         );
                       })}
                     </tr>
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={19} className="bg-slate-50/70 px-5 py-4">
+                          <div className="rounded-lg border border-slate-200 bg-white p-4 max-w-[1100px]">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="font-bold text-slate-800">{r.contractNo}</span>
+                              <span className="text-xs text-slate-400">{r.contractDate}</span>
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                                계약완료
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                                {permitLabel(r.permitType)}
+                              </span>
+                            </div>
+
+                            {/* 계약 정보 */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1.5 text-sm mb-4">
+                              {[
+                                ["건축주", r.clientName || "-"],
+                                ["연락처", r.phone || "-"],
+                                ["전시장", r.showroom || "-"],
+                                ["영업사원", r.salesperson || "-"],
+                                ["계약평수", r.pyeong || "-"],
+                                ["현장/이동", r.moveType || "-"],
+                                ["현장주소", r.siteAddress || "-"],
+                              ].map(([k, v]) => (
+                                <div key={k} className="flex gap-2">
+                                  <span className="text-slate-400 shrink-0 w-16">{k}</span>
+                                  <span className="text-slate-700">{v}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 금액 요약 (만원) */}
+                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
+                              {[
+                                ["공급가액", r.supply],
+                                ["부가세", r.vat],
+                                ["계약 총액", r.productTotal],
+                                ["계약금", r.downPayment],
+                                ["중도금", r.interim],
+                                ["잔금", r.balance],
+                              ].map(([k, v]) => (
+                                <div key={k as string} className="rounded-lg bg-slate-50 px-3 py-2">
+                                  <div className="text-[11px] text-slate-400">{k}</div>
+                                  <div className="text-sm font-semibold text-slate-800 tabular-nums">
+                                    {fmtMan(v as number)}
+                                    <span className="text-[10px] font-normal text-slate-400"> 만원</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 주문내용 */}
+                            {r.items.filter((it) => num(it.amount) > 0).length > 0 && (
+                              <div>
+                                <div className="text-xs font-semibold text-slate-500 mb-1">주문내용</div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                                    <thead className="bg-slate-100/70 text-slate-500">
+                                      <tr>
+                                        <th className="px-3 py-1.5 text-left font-medium">품목</th>
+                                        <th className="px-3 py-1.5 text-center font-medium">단위</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">평수</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">금액(만원)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {r.items
+                                        .filter((it) => num(it.amount) > 0)
+                                        .map((it, i) => (
+                                          <tr key={i}>
+                                            <td className="px-3 py-1.5 text-slate-700">{it.name}</td>
+                                            <td className="px-3 py-1.5 text-center text-slate-500">
+                                              {it.unit || "-"}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right text-slate-500 tabular-nums">
+                                              {it.area || "-"}
+                                            </td>
+                                            <td className="px-3 py-1.5 text-right tabular-nums">
+                                              {fmtMan(num(it.amount))}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>

@@ -211,9 +211,9 @@ export default function EContractsTable({
         <EmptyState>조건에 맞는 계약이 없습니다.</EmptyState>
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[75vh]">
             <table className="w-full min-w-[2800px] text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="th whitespace-nowrap">계약일</th>
                   <th className="th whitespace-nowrap">건축주</th>

@@ -6,7 +6,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
       contractNo?: string;
-      patch?: Record<string, string>;
+      patch?: {
+        balance?: string;
+        evidence?: string;
+        worker?: string;
+        progress?: string;
+        biz?: string;
+        extra?: Record<string, { amt?: string; memo?: string }>;
+      };
     };
     const contractNo = String(body.contractNo || "");
     if (!contractNo) return NextResponse.json({ error: "contractNo 필요" }, { status: 400 });
@@ -18,6 +25,7 @@ export async function POST(req: NextRequest) {
       worker: p.worker ?? null,
       progress: p.progress ?? null,
       biz: p.biz ?? null,
+      extra: p.extra ?? null,
     });
     return NextResponse.json({ ok });
   } catch {

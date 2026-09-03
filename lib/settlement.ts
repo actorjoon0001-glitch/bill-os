@@ -16,6 +16,7 @@ export type SheetManual = {
   worker?: string | null;
   progress?: string | null;
   biz?: string | null;
+  extra?: Record<string, { amt?: string; memo?: string }> | null;
 };
 
 const ready = () => Boolean(supabaseRest() && supabaseKey());
@@ -23,16 +24,25 @@ const ready = () => Boolean(supabaseRest() && supabaseKey());
 // ---- 전자계약서 관리 시트 입력값 ----
 export async function getSheetAll(): Promise<Record<string, SheetManual>> {
   if (!ready()) return {};
-  try {
-    const res = await fetch(
-      `${supabaseRest()}/settlement_sheet?select=contract_no,balance,evidence,worker,progress,biz`,
-      { headers: headers(), cache: "no-store" }
-    );
-    if (!res.ok) return {};
-    const rows = (await res.json()) as SheetManual[];
+  const toMap = (rows: SheetManual[]) => {
     const map: Record<string, SheetManual> = {};
     for (const r of rows) map[r.contract_no] = r;
     return map;
+  };
+  try {
+    // extra(jsonb) 컬럼 포함 조회, 컬럼이 아직 없으면 제외하고 재시도
+    let res = await fetch(
+      `${supabaseRest()}/settlement_sheet?select=contract_no,balance,evidence,worker,progress,biz,extra`,
+      { headers: headers(), cache: "no-store" }
+    );
+    if (!res.ok) {
+      res = await fetch(
+        `${supabaseRest()}/settlement_sheet?select=contract_no,balance,evidence,worker,progress,biz`,
+        { headers: headers(), cache: "no-store" }
+      );
+    }
+    if (!res.ok) return {};
+    return toMap((await res.json()) as SheetManual[]);
   } catch {
     return {};
   }
@@ -40,12 +50,19 @@ export async function getSheetAll(): Promise<Record<string, SheetManual>> {
 
 export async function upsertSheet(row: SheetManual): Promise<boolean> {
   if (!ready() || !row.contract_no) return false;
-  try {
-    const res = await fetch(`${supabaseRest()}/settlement_sheet`, {
+  const post = (payload: object) =>
+    fetch(`${supabaseRest()}/settlement_sheet`, {
       method: "POST",
       headers: headers({ Prefer: "resolution=merge-duplicates" }),
-      body: JSON.stringify([{ ...row, updated_at: new Date().toISOString() }]),
+      body: JSON.stringify([{ ...payload, updated_at: new Date().toISOString() }]),
     });
+  try {
+    let res = await post(row);
+    if (!res.ok && row.extra !== undefined) {
+      // extra 컬럼 미존재 시 제외하고 재시도(나머지 항목은 저장)
+      const { extra, ...rest } = row;
+      res = await post(rest);
+    }
     return res.ok;
   } catch {
     return false;

@@ -19,7 +19,18 @@ type Manual = {
   worker?: string | null;
   progress?: string | null;
   biz?: string | null;
+  extra?: Record<string, { amt?: string; memo?: string }> | null;
 };
+
+// 돈 받을 때마다 기입하는 수납 항목 (금액 + 메모)
+const PAYMENTS = [
+  { key: "mid1", label: "중도금1" },
+  { key: "mid2", label: "중도금2" },
+  { key: "mid3", label: "중도금3" },
+  { key: "add1", label: "추가금1" },
+  { key: "add2", label: "추가금2" },
+  { key: "remain", label: "남은 잔금" },
+] as const;
 
 type MonthAgg = { month: string; count: number; down: number; product: number };
 
@@ -49,6 +60,31 @@ export default function EContractsTable({
           body: JSON.stringify({ contractNo: no, patch: nextRow }),
         }).catch(() => {});
       }, 600);
+      return next;
+    });
+  };
+
+  // 수납 항목(중도금/추가금/잔금)의 금액·메모 저장
+  const persistRow = (no: string, nextRow: Manual) => {
+    clearTimeout(timers.current[no]);
+    timers.current[no] = setTimeout(() => {
+      fetch("/api/sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractNo: no, patch: nextRow }),
+      }).catch(() => {});
+    }, 600);
+  };
+  const setExtra = (no: string, key: string, sub: "amt" | "memo", value: string) => {
+    setManual((prev) => {
+      const row = prev[no] || {};
+      const extra = {
+        ...(row.extra || {}),
+        [key]: { ...((row.extra || {})[key] || {}), [sub]: value },
+      };
+      const nextRow: Manual = { ...row, extra };
+      const next = { ...prev, [no]: nextRow };
+      persistRow(no, nextRow);
       return next;
     });
   };
@@ -161,7 +197,7 @@ export default function EContractsTable({
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px] text-sm">
+            <table className="w-full min-w-[2600px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="th whitespace-nowrap">계약일</th>
@@ -176,6 +212,11 @@ export default function EContractsTable({
                   <th className="th">담당작업자</th>
                   <th className="th">진행사항</th>
                   <th className="th">사업자명</th>
+                  {PAYMENTS.map((p) => (
+                    <th key={p.key} className="th text-right whitespace-nowrap">
+                      {p.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -251,6 +292,25 @@ export default function EContractsTable({
                           className="input py-1 w-28"
                         />
                       </td>
+                      {PAYMENTS.map((p) => {
+                        const cell = m.extra?.[p.key] || {};
+                        return (
+                          <td key={p.key} className="td">
+                            <input
+                              value={cell.amt || ""}
+                              onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
+                              placeholder="금액"
+                              className="input py-1 w-28 text-right"
+                            />
+                            <input
+                              value={cell.memo || ""}
+                              onChange={(e) => setExtra(r.contractNo, p.key, "memo", e.target.value)}
+                              placeholder="메모(예: 8/14 입금)"
+                              className="input py-1 w-36 mt-1 text-xs"
+                            />
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -262,8 +322,10 @@ export default function EContractsTable({
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
         · 계약일·건축주·계약평수·현장/이동·지역·연락처·계약금액은 전자계약서에서 자동 표시됩니다.
-        <br />· 잔액·매출증빙·담당작업자·진행사항·사업자명은 직접 입력하며, 세움os에 자동 저장되어
-        정산팀 전원이 함께 봅니다.
+        <br />· 잔액·매출증빙·담당작업자·진행사항·사업자명·중도금/추가금/잔금은 직접 입력하며, 세움os에
+        자동 저장되어 정산팀 전원이 함께 봅니다.
+        <br />· 중도금1~3·추가금1·2·남은 잔금은 <b>돈 받을 때마다 금액과 메모(예: 8/14 입금)</b>를
+        적을 수 있습니다.
       </p>
     </div>
   );

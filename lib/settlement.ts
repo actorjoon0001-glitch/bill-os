@@ -16,7 +16,7 @@ export type SheetManual = {
   worker?: string | null;
   progress?: string | null;
   biz?: string | null;
-  extra?: Record<string, { amt?: string; memo?: string }> | null;
+  extra?: Record<string, { amt?: string; memo?: string; taxed?: boolean }> | null;
 };
 
 const ready = () => Boolean(supabaseRest() && supabaseKey());

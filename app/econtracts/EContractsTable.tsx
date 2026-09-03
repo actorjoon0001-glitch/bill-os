@@ -22,7 +22,7 @@ type Manual = {
   worker?: string | null;
   progress?: string | null;
   biz?: string | null;
-  extra?: Record<string, { amt?: string; memo?: string }> | null;
+  extra?: Record<string, { amt?: string; memo?: string; taxed?: boolean }> | null;
 };
 
 // 돈 받을 때마다 기입하는 수납 항목 (금액 + 메모)
@@ -85,7 +85,12 @@ export default function EContractsTable({
       }).catch(() => {});
     }, 600);
   };
-  const setExtra = (no: string, key: string, sub: "amt" | "memo", value: string) => {
+  const setExtra = (
+    no: string,
+    key: string,
+    sub: "amt" | "memo" | "taxed",
+    value: string | boolean
+  ) => {
     setManual((prev) => {
       const row = prev[no] || {};
       const extra = {
@@ -331,7 +336,9 @@ export default function EContractsTable({
                                 value={cell.amt || ""}
                                 onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
                                 placeholder="금액"
-                                className="input py-1 w-full text-right"
+                                className={`input py-1 w-full text-right ${
+                                  cell.taxed ? "text-red-600 font-semibold" : ""
+                                }`}
                               />
                               <input
                                 value={cell.memo || ""}
@@ -339,6 +346,19 @@ export default function EContractsTable({
                                 placeholder="메모(예: 8/14 입금)"
                                 className="input py-1 w-full text-xs"
                               />
+                              <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(cell.taxed)}
+                                  onChange={(e) =>
+                                    setExtra(r.contractNo, p.key, "taxed", e.target.checked)
+                                  }
+                                  className="h-3 w-3 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                                />
+                                <span className={cell.taxed ? "text-red-600 font-medium" : ""}>
+                                  부가세 증빙
+                                </span>
+                              </label>
                             </div>
                           </td>
                         );

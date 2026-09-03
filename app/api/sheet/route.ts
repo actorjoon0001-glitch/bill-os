@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         worker?: string;
         progress?: string;
         biz?: string;
-        extra?: Record<string, { amt?: string; memo?: string }>;
+        extra?: Record<string, { amt?: string; memo?: string; taxed?: boolean }>;
       };
     };
     const contractNo = String(body.contractNo || "");

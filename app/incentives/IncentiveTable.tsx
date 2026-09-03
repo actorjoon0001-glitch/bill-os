@@ -257,12 +257,13 @@ export default function IncentiveTable({
                             {a.name} · 계약 {a.count}건 (계약건별 요율을 개별 조정할 수 있습니다)
                           </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full min-w-[820px] text-sm bg-white rounded-lg overflow-hidden border border-slate-200">
+                            <table className="w-full min-w-[960px] text-sm bg-white rounded-lg overflow-hidden border border-slate-200">
                               <thead className="bg-slate-100/70 text-slate-500">
                                 <tr>
                                   <th className="px-3 py-1.5 text-left font-medium">계약번호</th>
                                   <th className="px-3 py-1.5 text-left font-medium">건축주</th>
                                   <th className="px-3 py-1.5 text-left font-medium">현장주소</th>
+                                  <th className="px-3 py-1.5 text-left font-medium">영업사원</th>
                                   <th className="px-3 py-1.5 text-right font-medium">공급가액</th>
                                   <th className="px-3 py-1.5 text-center font-medium">요율(%)</th>
                                   <th className="px-3 py-1.5 text-right font-medium">인센티브</th>
@@ -290,6 +291,26 @@ export default function IncentiveTable({
                                       <td className="px-3 py-1.5">{c.clientName || "-"}</td>
                                       <td className="px-3 py-1.5 text-slate-500">
                                         {c.siteAddress}
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap">
+                                        {splitReps(c.salesperson).length ? (
+                                          splitReps(c.salesperson).map((nm, i) => (
+                                            <span key={nm + i}>
+                                              {i > 0 && <span className="text-slate-300">, </span>}
+                                              <span
+                                                className={
+                                                  nm === a.name
+                                                    ? "font-semibold text-brand-700"
+                                                    : "text-slate-500"
+                                                }
+                                              >
+                                                {nm}
+                                              </span>
+                                            </span>
+                                          ))
+                                        ) : (
+                                          <span className="text-slate-400">-</span>
+                                        )}
                                       </td>
                                       <td className="px-3 py-1.5 text-right tabular-nums">
                                         {fmtMan(c.supply)}

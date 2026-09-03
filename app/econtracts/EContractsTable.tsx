@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui";
 import type { EContractRow } from "@/lib/econtracts";
 
@@ -12,35 +12,43 @@ const monthLabel = (m: string) => {
   return y && mo ? `${y}년 ${Number(mo)}월` : m || "-";
 };
 
-// 정산팀 직접 입력 항목 (계약번호별 localStorage 저장)
-type Manual = { balance?: string; evidence?: string; worker?: string; progress?: string; biz?: string };
-const MANUAL_KEY = "seum_ec_manual";
+// 정산팀 직접 입력 항목 (계약번호별, 세움os Supabase 공유 저장)
+type Manual = {
+  balance?: string | null;
+  evidence?: string | null;
+  worker?: string | null;
+  progress?: string | null;
+  biz?: string | null;
+};
 
 type MonthAgg = { month: string; count: number; down: number; product: number };
 
-export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
+export default function EContractsTable({
+  rows,
+  initialManual = {},
+}: {
+  rows: EContractRow[];
+  initialManual?: Record<string, Manual>;
+}) {
   const [q, setQ] = useState("");
   const [showroom, setShowroom] = useState("ALL");
   const [month, setMonth] = useState("ALL");
-  const [manual, setManual] = useState<Record<string, Manual>>({});
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(MANUAL_KEY);
-      if (raw) setManual(JSON.parse(raw));
-    } catch {
-      /* 무시 */
-    }
-  }, []);
+  const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const setField = (no: string, field: keyof Manual, value: string) => {
     setManual((prev) => {
-      const next = { ...prev, [no]: { ...prev[no], [field]: value } };
-      try {
-        localStorage.setItem(MANUAL_KEY, JSON.stringify(next));
-      } catch {
-        /* 무시 */
-      }
+      const nextRow = { ...(prev[no] || {}), [field]: value };
+      const next = { ...prev, [no]: nextRow };
+      // 디바운스 후 서버 저장(팀 공유)
+      clearTimeout(timers.current[no]);
+      timers.current[no] = setTimeout(() => {
+        fetch("/api/sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contractNo: no, patch: nextRow }),
+        }).catch(() => {});
+      }, 600);
       return next;
     });
   };
@@ -254,8 +262,8 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
         · 계약일·건축주·계약평수·현장/이동·지역·연락처·계약금액은 전자계약서에서 자동 표시됩니다.
-        <br />· 잔액·매출증빙·담당작업자·진행사항·사업자명은 직접 입력하며, 현재는 이 브라우저에만
-        저장됩니다(팀 공유 저장은 별도 설정 필요).
+        <br />· 잔액·매출증빙·담당작업자·진행사항·사업자명은 직접 입력하며, 세움os에 자동 저장되어
+        정산팀 전원이 함께 봅니다.
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import {
   isEContractConfigured,
   type EContractRow,
 } from "@/lib/econtracts";
+import { getSheetAll, type SheetManual } from "@/lib/settlement";
 import EContractsTable from "./EContractsTable";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +13,11 @@ export default async function EContractsPage() {
   const configured = isEContractConfigured();
 
   let rows: EContractRow[] = [];
+  let manual: Record<string, SheetManual> = {};
   let error: string | null = null;
   if (configured) {
     try {
-      rows = await fetchCompletedContracts();
+      [rows, manual] = await Promise.all([fetchCompletedContracts(), getSheetAll()]);
     } catch (e) {
       error = e instanceof Error ? e.message : "전자계약서 조회 중 오류가 발생했습니다.";
     }
@@ -50,7 +52,7 @@ export default async function EContractsPage() {
           <div className="text-xs text-slate-500 break-all">{error}</div>
         </div>
       ) : (
-        <EContractsTable rows={rows} />
+        <EContractsTable rows={rows} initialManual={manual} />
       )}
     </div>
   );

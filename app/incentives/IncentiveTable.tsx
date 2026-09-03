@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui";
 import type { EContractRow } from "@/lib/econtracts";
+import type { IncentiveSettle } from "@/lib/settlement";
 
 const fmtMan = (n: number) => Math.round(n).toLocaleString("ko-KR");
 const monthOf = (date: string) => (date || "").slice(0, 7);
@@ -11,7 +12,6 @@ const monthLabel = (m: string) => {
   return y && mo ? `${y}년 ${Number(mo)}월` : m || "-";
 };
 
-// "황진호,조현진" / "황진호/조현진" → ["황진호","조현진"]
 const splitReps = (s: string) =>
   (s || "")
     .split(/[,/、·]+/)
@@ -19,9 +19,6 @@ const splitReps = (s: string) =>
     .filter(Boolean);
 
 const DEFAULT_RATE = 1.0; // 기본 인센티브 요율 (%)
-const STORE_KEY = "seum_incentive_rates";
-const PAID_KEY = "seum_incentive_paid";
-const MEMO_KEY = "seum_incentive_memo";
 
 type Agg = {
   name: string;
@@ -31,61 +28,57 @@ type Agg = {
   contracts: EContractRow[];
 };
 
-export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
+export default function IncentiveTable({
+  rows,
+  initialRates = {},
+  initialSettle = {},
+}: {
+  rows: EContractRow[];
+  initialRates?: Record<string, number>;
+  initialSettle?: Record<string, IncentiveSettle>;
+}) {
   const [month, setMonth] = useState("ALL");
-  const [rates, setRates] = useState<Record<string, number>>({});
-  const [paid, setPaid] = useState<Record<string, boolean>>({});
-  const [memos, setMemos] = useState<Record<string, string>>({});
+  // rates: 'name' = 영업사원 기본 요율, 'name::계약번호' = 계약건별 개별 요율
+  const [rates, setRates] = useState<Record<string, number>>(initialRates);
+  const [settle, setSettle] = useState<Record<string, IncentiveSettle>>(initialSettle);
   const [open, setOpen] = useState<string | null>(null);
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  useEffect(() => {
-    try {
-      const r = localStorage.getItem(STORE_KEY);
-      if (r) setRates(JSON.parse(r));
-      const p = localStorage.getItem(PAID_KEY);
-      if (p) setPaid(JSON.parse(p));
-      const mm = localStorage.getItem(MEMO_KEY);
-      if (mm) setMemos(JSON.parse(mm));
-    } catch {
-      /* 무시 */
-    }
-  }, []);
-
-  const setRate = (name: string, value: number) => {
-    setRates((prev) => {
-      const next = { ...prev, [name]: value };
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(next));
-      } catch {
-        /* 무시 */
-      }
-      return next;
-    });
+  const debounce = (key: string, fn: () => void, delay = 500) => {
+    clearTimeout(timers.current[key]);
+    timers.current[key] = setTimeout(fn, delay);
   };
 
-  // 지급여부·메모는 정산 기간(월 필터)별로 분리 저장한다.
-  const keyOf = (name: string) => `${month}::${name}`;
+  const saveRate = (salesperson: string, rate: number) =>
+    fetch("/api/incentive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "rate", salesperson, rate }),
+    }).catch(() => {});
+
+  const saveSettle = (id: string, patch: Partial<IncentiveSettle>) =>
+    fetch("/api/incentive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "settle", id, ...patch }),
+    }).catch(() => {});
+
+  // 요율 설정 (key = 'name' 또는 'name::계약번호')
+  const setRateKey = (key: string, value: number) => {
+    setRates((prev) => ({ ...prev, [key]: value }));
+    debounce(`rate:${key}`, () => saveRate(key, value));
+  };
+
+  const keyOf = (name: string) => `${month}::${name}`; // 지급여부/메모: 기간별
   const setPaidState = (name: string, value: boolean) => {
-    setPaid((prev) => {
-      const next = { ...prev, [keyOf(name)]: value };
-      try {
-        localStorage.setItem(PAID_KEY, JSON.stringify(next));
-      } catch {
-        /* 무시 */
-      }
-      return next;
-    });
+    const id = keyOf(name);
+    setSettle((prev) => ({ ...prev, [id]: { paid: value, memo: prev[id]?.memo || "" } }));
+    saveSettle(id, { paid: value });
   };
   const setMemo = (name: string, value: string) => {
-    setMemos((prev) => {
-      const next = { ...prev, [keyOf(name)]: value };
-      try {
-        localStorage.setItem(MEMO_KEY, JSON.stringify(next));
-      } catch {
-        /* 무시 */
-      }
-      return next;
-    });
+    const id = keyOf(name);
+    setSettle((prev) => ({ ...prev, [id]: { paid: prev[id]?.paid || false, memo: value } }));
+    debounce(`memo:${id}`, () => saveSettle(id, { memo: value }));
   };
 
   const months = useMemo(
@@ -101,7 +94,6 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
     [rows, month]
   );
 
-  // 영업사원별 집계 (공동계약은 각자에게 공급가액 전액 귀속 → 각자 요율 적용)
   const aggs = useMemo<Agg[]>(() => {
     const m = new Map<string, Agg>();
     for (const r of filtered) {
@@ -120,9 +112,20 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
     return Array.from(m.values()).sort((a, b) => b.supply - a.supply);
   }, [filtered]);
 
-  const rateOf = (name: string) =>
+  // 기본 요율
+  const baseRateOf = (name: string) =>
     rates[name] === undefined ? DEFAULT_RATE : rates[name];
-  const incentiveOf = (a: Agg) => (a.supply * rateOf(a.name)) / 100;
+  // 계약건별 요율 (개별 설정 없으면 기본 요율)
+  const contractRateOf = (name: string, contractNo: string) => {
+    const k = `${name}::${contractNo}`;
+    return rates[k] === undefined ? baseRateOf(name) : rates[k];
+  };
+  // 영업사원 인센티브 = Σ 계약(공급가액 × 계약건별 요율)
+  const incentiveOf = (a: Agg) =>
+    a.contracts.reduce((s, c) => s + (c.supply * contractRateOf(a.name, c.contractNo)) / 100, 0);
+
+  const paidOf = (name: string) => Boolean(settle[keyOf(name)]?.paid);
+  const memoOf = (name: string) => settle[keyOf(name)]?.memo || "";
 
   const totalSupply = aggs.reduce((s, a) => s + a.supply, 0);
   const totalIncentive = aggs.reduce((s, a) => s + incentiveOf(a), 0);
@@ -133,7 +136,6 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
 
   return (
     <div>
-      {/* 요약 + 월 필터 */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <select
           className="input w-auto"
@@ -175,7 +177,7 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                 <th className="th">전시장</th>
                 <th className="th text-right">계약 건수</th>
                 <th className="th text-right">공급가액 합계</th>
-                <th className="th text-center">요율(%)</th>
+                <th className="th text-center">기본 요율(%)</th>
                 <th className="th text-right">인센티브</th>
                 <th className="th text-center">지급여부</th>
                 <th className="th">메모</th>
@@ -186,9 +188,7 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                 const isOpen = open === a.name;
                 return (
                   <Fragment key={a.name}>
-                    <tr
-                      className={`hover:bg-slate-50/60 ${isOpen ? "bg-brand-50/40" : ""}`}
-                    >
+                    <tr className={`hover:bg-slate-50/60 ${isOpen ? "bg-brand-50/40" : ""}`}>
                       <td className="td">
                         <button
                           type="button"
@@ -215,8 +215,8 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                           type="number"
                           step="0.1"
                           min="0"
-                          value={rateOf(a.name)}
-                          onChange={(e) => setRate(a.name, Number(e.target.value))}
+                          value={baseRateOf(a.name)}
+                          onChange={(e) => setRateKey(a.name, Number(e.target.value))}
                           className="input w-20 text-right py-1"
                         />
                       </td>
@@ -227,23 +227,23 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                         <label className="inline-flex items-center justify-center cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={Boolean(paid[keyOf(a.name)])}
+                            checked={paidOf(a.name)}
                             onChange={(e) => setPaidState(a.name, e.target.checked)}
                             className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                           />
                           <span
                             className={`ml-1.5 text-xs ${
-                              paid[keyOf(a.name)] ? "text-emerald-600 font-medium" : "text-slate-400"
+                              paidOf(a.name) ? "text-emerald-600 font-medium" : "text-slate-400"
                             }`}
                           >
-                            {paid[keyOf(a.name)] ? "지급완료" : "미지급"}
+                            {paidOf(a.name) ? "지급완료" : "미지급"}
                           </span>
                         </label>
                       </td>
                       <td className="td">
                         <input
                           type="text"
-                          value={memos[keyOf(a.name)] || ""}
+                          value={memoOf(a.name)}
                           onChange={(e) => setMemo(a.name, e.target.value)}
                           placeholder="메모"
                           className="input py-1 min-w-[140px]"
@@ -254,23 +254,24 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                       <tr>
                         <td colSpan={8} className="bg-slate-50/70 px-4 py-3">
                           <div className="text-xs font-semibold text-slate-500 mb-2">
-                            {a.name} · 계약 {a.count}건
+                            {a.name} · 계약 {a.count}건 (계약건별 요율을 개별 조정할 수 있습니다)
                           </div>
                           <div className="overflow-x-auto">
-                            <table className="w-full min-w-[720px] text-sm bg-white rounded-lg overflow-hidden border border-slate-200">
+                            <table className="w-full min-w-[820px] text-sm bg-white rounded-lg overflow-hidden border border-slate-200">
                               <thead className="bg-slate-100/70 text-slate-500">
                                 <tr>
                                   <th className="px-3 py-1.5 text-left font-medium">계약번호</th>
                                   <th className="px-3 py-1.5 text-left font-medium">건축주</th>
                                   <th className="px-3 py-1.5 text-left font-medium">현장주소</th>
-                                  <th className="px-3 py-1.5 text-left font-medium">전시장</th>
                                   <th className="px-3 py-1.5 text-right font-medium">공급가액</th>
-                                  <th className="px-3 py-1.5 text-right font-medium">계약금</th>
+                                  <th className="px-3 py-1.5 text-center font-medium">요율(%)</th>
+                                  <th className="px-3 py-1.5 text-right font-medium">인센티브</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
                                 {a.contracts.map((c) => {
                                   const co = splitReps(c.salesperson).length > 1;
+                                  const rate = contractRateOf(a.name, c.contractNo);
                                   return (
                                     <tr key={c.contractNo}>
                                       <td className="px-3 py-1.5 whitespace-nowrap">
@@ -290,14 +291,26 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                                       <td className="px-3 py-1.5 text-slate-500">
                                         {c.siteAddress}
                                       </td>
-                                      <td className="px-3 py-1.5 text-slate-500">
-                                        {c.showroom || "-"}
-                                      </td>
                                       <td className="px-3 py-1.5 text-right tabular-nums">
                                         {fmtMan(c.supply)}
                                       </td>
-                                      <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600">
-                                        {fmtMan(c.downPayment)}
+                                      <td className="px-3 py-1.5 text-center">
+                                        <input
+                                          type="number"
+                                          step="0.1"
+                                          min="0"
+                                          value={rate}
+                                          onChange={(e) =>
+                                            setRateKey(
+                                              `${a.name}::${c.contractNo}`,
+                                              Number(e.target.value)
+                                            )
+                                          }
+                                          className="input w-16 text-right py-0.5"
+                                        />
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600 font-medium">
+                                        {fmtMan((c.supply * rate) / 100)}
                                       </td>
                                     </tr>
                                   );
@@ -325,7 +338,7 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
                   {fmtMan(totalIncentive)}
                 </td>
                 <td className="td text-center text-xs text-slate-400 tabular-nums">
-                  {aggs.filter((a) => paid[keyOf(a.name)]).length}/{aggs.length} 지급
+                  {aggs.filter((a) => paidOf(a.name)).length}/{aggs.length} 지급
                 </td>
                 <td className="td"></td>
               </tr>
@@ -335,10 +348,10 @@ export default function IncentiveTable({ rows }: { rows: EContractRow[] }) {
       </div>
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-        · 금액 단위: 만원 · 기준: 공급가액(부가세 제외) · 인센티브 = 공급가액 × 요율(%)
-        <br />· 영업사원 이름을 클릭하면 해당 계약 목록이 펼쳐집니다.
-        <br />· 공동계약(영업사원 2명)은 각자에게 공급가액 전액을 귀속하여 각자 요율로 계산합니다.
-        <br />· 요율은 영업사원별로 입력·저장되며(이 브라우저에 저장) 기본값은 {DEFAULT_RATE}% 입니다.
+        · 금액 단위: 만원 · 기준: 공급가액(부가세 제외) · 인센티브 = Σ(계약 공급가액 × 요율)
+        <br />· 영업사원 이름을 클릭하면 계약 목록이 펼쳐지며, <b>계약건별로 요율을 개별 조정</b>할 수
+        있습니다(공동계약 대응). 개별 설정이 없으면 기본 요율이 적용됩니다.
+        <br />· 요율·지급여부·메모는 세움os에 자동 저장되어 정산팀 전원이 함께 봅니다.
       </p>
     </div>
   );

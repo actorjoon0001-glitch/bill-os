@@ -325,8 +325,23 @@ export default function EContractsTable({
                           onChange={(e) => setField(r.contractNo, "progress", e.target.value)}
                           placeholder="진행사항"
                           rows={2}
-                          className="input py-1 min-w-[150px] resize-y"
+                          className={`input py-1 min-w-[150px] resize-y ${
+                            m.extra?.__progress?.taxed ? "text-red-600 font-semibold" : ""
+                          }`}
                         />
+                        <label className="mt-1 flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(m.extra?.__progress?.taxed)}
+                            onChange={(e) =>
+                              setExtra(r.contractNo, "__progress", "taxed", e.target.checked)
+                            }
+                            className="h-3 w-3 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                          />
+                          <span className={m.extra?.__progress?.taxed ? "text-red-600 font-medium" : ""}>
+                            부가세 증빙
+                          </span>
+                        </label>
                       </td>
                       <td className="td">
                         <input

@@ -6,6 +6,8 @@ import type { EContractRow } from "@/lib/econtracts";
 import type { IncentiveSettle } from "@/lib/settlement";
 
 const fmtMan = (n: number) => Math.round(n).toLocaleString("ko-KR");
+// 인센티브는 절삭 없이 원 단위로 정확히 표시 (만원 → 원)
+const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR");
 const monthOf = (date: string) => (date || "").slice(0, 7);
 const monthLabel = (m: string) => {
   const [y, mo] = m.split("-");
@@ -162,9 +164,9 @@ export default function IncentiveTable({
         <div className="card px-4 py-2 ml-auto">
           <span className="text-xs text-slate-400">인센티브 총액 </span>
           <span className="font-bold text-emerald-600 tabular-nums">
-            {fmtMan(totalIncentive)}
+            {fmtWon(totalIncentive)}
           </span>
-          <span className="text-xs text-slate-400">만원</span>
+          <span className="text-xs text-slate-400">원</span>
         </div>
       </div>
 
@@ -178,7 +180,7 @@ export default function IncentiveTable({
                 <th className="th text-right">계약 건수</th>
                 <th className="th text-right">공급가액 합계</th>
                 <th className="th text-center">기본 요율(%)</th>
-                <th className="th text-right">인센티브</th>
+                <th className="th text-right">인센티브(원)</th>
                 <th className="th text-center">지급여부</th>
                 <th className="th">메모</th>
               </tr>
@@ -221,7 +223,7 @@ export default function IncentiveTable({
                         />
                       </td>
                       <td className="td text-right tabular-nums font-semibold text-emerald-600">
-                        {fmtMan(incentiveOf(a))}
+                        {fmtWon(incentiveOf(a))}
                       </td>
                       <td className="td text-center">
                         <label className="inline-flex items-center justify-center cursor-pointer">
@@ -266,7 +268,7 @@ export default function IncentiveTable({
                                   <th className="px-3 py-1.5 text-left font-medium">영업사원</th>
                                   <th className="px-3 py-1.5 text-right font-medium">공급가액</th>
                                   <th className="px-3 py-1.5 text-center font-medium">요율(%)</th>
-                                  <th className="px-3 py-1.5 text-right font-medium">인센티브</th>
+                                  <th className="px-3 py-1.5 text-right font-medium">인센티브(원)</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100">
@@ -331,7 +333,7 @@ export default function IncentiveTable({
                                         />
                                       </td>
                                       <td className="px-3 py-1.5 text-right tabular-nums text-emerald-600 font-medium">
-                                        {fmtMan((c.supply * rate) / 100)}
+                                        {fmtWon((c.supply * rate) / 100)}
                                       </td>
                                     </tr>
                                   );
@@ -356,7 +358,7 @@ export default function IncentiveTable({
                 </td>
                 <td className="td"></td>
                 <td className="td text-right tabular-nums font-bold text-emerald-600">
-                  {fmtMan(totalIncentive)}
+                  {fmtWon(totalIncentive)}
                 </td>
                 <td className="td text-center text-xs text-slate-400 tabular-nums">
                   {aggs.filter((a) => paidOf(a.name)).length}/{aggs.length} 지급
@@ -369,7 +371,7 @@ export default function IncentiveTable({
       </div>
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-        · 금액 단위: 만원 · 기준: 공급가액(부가세 제외) · 인센티브 = Σ(계약 공급가액 × 요율)
+        · 공급가액 단위: 만원 · 인센티브는 <b>원 단위로 절삭 없이</b> 표시 · 인센티브 = Σ(계약 공급가액 × 요율)
         <br />· 영업사원 이름을 클릭하면 계약 목록이 펼쳐지며, <b>계약건별로 요율을 개별 조정</b>할 수
         있습니다(공동계약 대응). 개별 설정이 없으면 기본 요율이 적용됩니다.
         <br />· 요율·지급여부·메모는 세움os에 자동 저장되어 정산팀 전원이 함께 봅니다.

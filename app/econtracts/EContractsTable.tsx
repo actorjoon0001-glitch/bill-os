@@ -441,6 +441,48 @@ export default function EContractsTable({
                                 </div>
                               </div>
                             )}
+
+                            {/* 기타 비용 */}
+                            {r.extraCosts.length > 0 && (
+                              <div className="mt-4">
+                                <div className="text-xs font-semibold text-slate-500 mb-1">
+                                  기타 비용
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                                    <tbody className="divide-y divide-slate-100">
+                                      {r.extraCosts.map((ec, i) => (
+                                        <tr key={i}>
+                                          <td className="px-3 py-1.5 text-slate-700">{ec.name}</td>
+                                          <td className="px-3 py-1.5 text-right tabular-nums w-40">
+                                            {num(ec.amount) > 0 ? (
+                                              <>
+                                                {fmtMan(num(ec.amount))}
+                                                <span className="text-[10px] text-slate-400"> 만원</span>
+                                              </>
+                                            ) : (
+                                              <span className="text-xs text-slate-400">서비스/무상</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 서비스·기타 내용 */}
+                            {r.extraNotes.trim() && (
+                              <div className="mt-4">
+                                <div className="text-xs font-semibold text-slate-500 mb-1">
+                                  서비스 · 기타 내용
+                                </div>
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                  {r.extraNotes}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>

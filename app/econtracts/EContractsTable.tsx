@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui";
-import { permitLabel, type EContractRow } from "@/lib/econtracts";
+import type { EContractRow } from "@/lib/econtracts";
 
 const fmtMan = (n: number) => n.toLocaleString("ko-KR");
-
-// "2026-08-31" → "2026-08"
+const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR"); // 만원 → 원
 const monthOf = (date: string) => (date || "").slice(0, 7);
-// "2026-08" → "2026년 8월"
 const monthLabel = (m: string) => {
   const [y, mo] = m.split("-");
   return y && mo ? `${y}년 ${Number(mo)}월` : m || "-";
 };
+
+// 정산팀 직접 입력 항목 (계약번호별 localStorage 저장)
+type Manual = { balance?: string; evidence?: string; worker?: string; progress?: string; biz?: string };
+const MANUAL_KEY = "seum_ec_manual";
 
 type MonthAgg = { month: string; count: number; down: number; product: number };
 
@@ -20,13 +22,34 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
   const [q, setQ] = useState("");
   const [showroom, setShowroom] = useState("ALL");
   const [month, setMonth] = useState("ALL");
+  const [manual, setManual] = useState<Record<string, Manual>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MANUAL_KEY);
+      if (raw) setManual(JSON.parse(raw));
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+
+  const setField = (no: string, field: keyof Manual, value: string) => {
+    setManual((prev) => {
+      const next = { ...prev, [no]: { ...prev[no], [field]: value } };
+      try {
+        localStorage.setItem(MANUAL_KEY, JSON.stringify(next));
+      } catch {
+        /* 무시 */
+      }
+      return next;
+    });
+  };
 
   const showrooms = useMemo(
     () => Array.from(new Set(rows.map((r) => r.showroom).filter(Boolean))).sort(),
     [rows]
   );
 
-  // 월별 집계 (계약일 기준, 최신월 우선)
   const monthly = useMemo<MonthAgg[]>(() => {
     const m = new Map<string, MonthAgg>();
     for (const r of rows) {
@@ -45,7 +68,7 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
       if (month !== "ALL" && monthOf(r.contractDate) !== month) return false;
       if (showroom !== "ALL" && r.showroom !== showroom) return false;
       if (q) {
-        const t = `${r.contractNo} ${r.clientName} ${r.siteAddress} ${r.salesperson}`.toLowerCase();
+        const t = `${r.contractNo} ${r.clientName} ${r.siteAddress} ${r.salesperson} ${r.phone}`.toLowerCase();
         if (!t.includes(q.toLowerCase())) return false;
       }
       return true;
@@ -85,7 +108,7 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
           </div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-slate-400">제품합계 합계</div>
+          <div className="text-xs text-slate-400">계약금액 합계</div>
           <div className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">
             {fmtMan(sum.product)}
             <span className="text-sm font-medium text-slate-400"> 만원</span>
@@ -93,71 +116,15 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
         </div>
       </div>
 
-      {/* 월별 집계 */}
-      <div className="card overflow-hidden mb-6">
-        <div className="px-4 py-2.5 border-b border-slate-100 text-sm font-semibold text-slate-700">
-          월별 집계 <span className="text-xs font-normal text-slate-400">(계약일 기준 · 단위: 만원)</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="th">월</th>
-                <th className="th text-right">건수</th>
-                <th className="th text-right">계약금 합계</th>
-                <th className="th text-right">제품합계 합계</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              <tr
-                className={`cursor-pointer hover:bg-slate-50/60 ${
-                  month === "ALL" ? "bg-brand-50/50" : ""
-                }`}
-                onClick={() => setMonth("ALL")}
-              >
-                <td className="td font-medium">전체 기간</td>
-                <td className="td text-right tabular-nums">{rows.length}건</td>
-                <td className="td text-right tabular-nums text-emerald-600 font-medium">
-                  {fmtMan(rows.reduce((s, r) => s + r.downPayment, 0))}
-                </td>
-                <td className="td text-right tabular-nums">
-                  {fmtMan(rows.reduce((s, r) => s + r.productTotal, 0))}
-                </td>
-              </tr>
-              {monthly.map((mm) => (
-                <tr
-                  key={mm.month}
-                  className={`cursor-pointer hover:bg-slate-50/60 ${
-                    month === mm.month ? "bg-brand-50/50" : ""
-                  }`}
-                  onClick={() => setMonth(mm.month)}
-                >
-                  <td className="td font-medium text-slate-700">{monthLabel(mm.month)}</td>
-                  <td className="td text-right tabular-nums">{mm.count}건</td>
-                  <td className="td text-right tabular-nums text-emerald-600 font-medium">
-                    {fmtMan(mm.down)}
-                  </td>
-                  <td className="td text-right tabular-nums">{fmtMan(mm.product)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* 필터 */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <input
           className="input max-w-xs"
-          placeholder="계약번호 / 건축주 / 현장주소 / 영업사원 검색"
+          placeholder="계약번호 / 건축주 / 지역 / 영업사원 / 연락처 검색"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select
-          className="input w-auto"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        >
+        <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)}>
           <option value="ALL">전체 기간</option>
           {monthly.map((mm) => (
             <option key={mm.month} value={mm.month}>
@@ -177,79 +144,119 @@ export default function EContractsTable({ rows }: { rows: EContractRow[] }) {
             </option>
           ))}
         </select>
-        <div className="ml-auto text-sm text-slate-400">
-          {filtered.length}건 · 단위: 만원
-        </div>
+        <div className="ml-auto text-sm text-slate-400">{filtered.length}건 · 금액 단위: 원</div>
       </div>
 
-      {/* 계약 목록 */}
+      {/* 계약 목록 (관리 시트 양식) */}
       {filtered.length === 0 ? (
         <EmptyState>조건에 맞는 계약이 없습니다.</EmptyState>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1280px]">
+            <table className="w-full min-w-[1500px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="th">계약번호</th>
+                  <th className="th whitespace-nowrap">계약일</th>
                   <th className="th">건축주</th>
-                  <th className="th">현장주소</th>
-                  <th className="th">전시장</th>
-                  <th className="th">영업사원</th>
-                  <th className="th text-center">인허가</th>
-                  <th className="th text-right">공급가액</th>
-                  <th className="th text-right">부가세</th>
-                  <th className="th text-right">계약 총액</th>
-                  <th className="th text-right">계약금</th>
-                  <th className="th text-right">중도금</th>
-                  <th className="th text-right">잔금</th>
+                  <th className="th whitespace-nowrap">계약평수</th>
+                  <th className="th text-center">현장/이동</th>
+                  <th className="th">지역</th>
+                  <th className="th whitespace-nowrap">연락처</th>
+                  <th className="th text-right">계약금액</th>
+                  <th className="th text-right">잔액</th>
+                  <th className="th">매출증빙</th>
+                  <th className="th">담당작업자</th>
+                  <th className="th">진행사항</th>
+                  <th className="th">사업자명</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((r) => (
-                  <tr key={r.contractNo} className="hover:bg-slate-50/60">
-                    <td className="td whitespace-nowrap">
-                      <div className="font-medium text-slate-800">{r.contractNo}</div>
-                      <div className="text-xs text-slate-400">{r.contractDate}</div>
-                    </td>
-                    <td className="td font-medium text-slate-800 whitespace-nowrap">
-                      {r.clientName || "-"}
-                    </td>
-                    <td className="td text-sm text-slate-600">{r.siteAddress || "-"}</td>
-                    <td className="td text-sm text-slate-700 whitespace-nowrap">
-                      {r.showroom || "-"}
-                    </td>
-                    <td className="td text-sm text-slate-700 whitespace-nowrap">
-                      {r.salesperson || "-"}
-                    </td>
-                    <td className="td text-center">
-                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                        {permitLabel(r.permitType)}
-                      </span>
-                    </td>
-                    <td className="td text-right tabular-nums">{fmtMan(r.supply)}</td>
-                    <td className="td text-right tabular-nums text-slate-500">
-                      {fmtMan(r.vat)}
-                    </td>
-                    <td className="td text-right font-semibold tabular-nums">
-                      {fmtMan(r.productTotal)}
-                    </td>
-                    <td className="td text-right tabular-nums text-emerald-600 font-medium">
-                      {fmtMan(r.downPayment)}
-                    </td>
-                    <td className="td text-right tabular-nums">
-                      {r.interim ? fmtMan(r.interim) : "-"}
-                    </td>
-                    <td className="td text-right tabular-nums">
-                      {r.balance ? fmtMan(r.balance) : "-"}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((r) => {
+                  const m = manual[r.contractNo] || {};
+                  return (
+                    <tr key={r.contractNo} className="hover:bg-slate-50/40 align-top">
+                      <td className="td whitespace-nowrap">
+                        <div className="text-slate-700">{r.contractDate}</div>
+                        <div className="text-[11px] text-slate-400">{r.contractNo}</div>
+                      </td>
+                      <td className="td font-medium text-slate-800">{r.clientName || "-"}</td>
+                      <td className="td text-slate-600 whitespace-nowrap">{r.pyeong || "-"}</td>
+                      <td className="td text-center">
+                        {r.moveType ? (
+                          <span
+                            className={`inline-block rounded-full px-2 py-0.5 text-xs ${
+                              r.moveType === "이동"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-sky-100 text-sky-700"
+                            }`}
+                          >
+                            {r.moveType}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="td text-slate-600 min-w-[180px]">{r.siteAddress || "-"}</td>
+                      <td className="td text-slate-600 whitespace-nowrap">{r.phone || "-"}</td>
+                      <td className="td text-right tabular-nums font-semibold whitespace-nowrap">
+                        {fmtWon(r.productTotal)}
+                      </td>
+                      <td className="td">
+                        <input
+                          value={m.balance || ""}
+                          onChange={(e) => setField(r.contractNo, "balance", e.target.value)}
+                          placeholder="-"
+                          className="input py-1 w-24 text-right"
+                        />
+                      </td>
+                      <td className="td">
+                        <textarea
+                          value={m.evidence || ""}
+                          onChange={(e) => setField(r.contractNo, "evidence", e.target.value)}
+                          placeholder="세금계산서 발행 등"
+                          rows={2}
+                          className="input py-1 min-w-[180px] resize-y"
+                        />
+                      </td>
+                      <td className="td">
+                        <input
+                          value={m.worker || ""}
+                          onChange={(e) => setField(r.contractNo, "worker", e.target.value)}
+                          placeholder="담당자"
+                          className="input py-1 w-24"
+                        />
+                      </td>
+                      <td className="td">
+                        <textarea
+                          value={m.progress || ""}
+                          onChange={(e) => setField(r.contractNo, "progress", e.target.value)}
+                          placeholder="진행사항"
+                          rows={2}
+                          className="input py-1 min-w-[150px] resize-y"
+                        />
+                      </td>
+                      <td className="td">
+                        <input
+                          value={m.biz || ""}
+                          onChange={(e) => setField(r.contractNo, "biz", e.target.value)}
+                          placeholder="사업자명"
+                          className="input py-1 w-28"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
+
+      <p className="mt-3 text-xs text-slate-400 leading-relaxed">
+        · 계약일·건축주·계약평수·현장/이동·지역·연락처·계약금액은 전자계약서에서 자동 표시됩니다.
+        <br />· 잔액·매출증빙·담당작업자·진행사항·사업자명은 직접 입력하며, 현재는 이 브라우저에만
+        저장됩니다(팀 공유 저장은 별도 설정 필요).
+      </p>
     </div>
   );
 }

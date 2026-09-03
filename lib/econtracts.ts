@@ -16,6 +16,9 @@ export type EContractRow = {
   salesperson: string; // 영업사원
   showroom: string; // 전시장
   permitType: string; // 인허가 종류 코드 (permit/temporary 등)
+  phone: string; // 연락처 (건축주)
+  pyeong: string; // 계약평수 (품목에서 산출, 예: '19평 포치6평')
+  moveType: string; // 현장/이동 구분
 };
 
 const num = (v: unknown) => {
@@ -32,6 +35,43 @@ export function normalizeShowroom(name: unknown): string {
   const s = String(name ?? "").trim();
   if (["본사", "본점", "본사전시장", "본사 전시장"].includes(s)) return "본사 전시장";
   return s;
+}
+
+// 품목(items)에서 계약평수 문자열 산출 (예: '19평 포치6평 데크4평')
+function derivePyeong(items: unknown): string {
+  if (!Array.isArray(items)) return "";
+  const areaOf = (kw: string) => {
+    const it = items.find(
+      (x: any) =>
+        typeof x?.name === "string" && x.name.includes(kw) && String(x.area ?? "").trim() !== ""
+    );
+    return it ? String((it as any).area).trim() : "";
+  };
+  const main =
+    areaOf("건물건축비") || areaOf("기초공사") || areaOf("현장 시공") || areaOf("습식난방");
+  const porch = areaOf("포치");
+  const deck = areaOf("데크");
+  const sun = areaOf("썬룸");
+  let s = main ? `${main}평` : "";
+  if (porch) s += ` 포치${porch}평`;
+  if (deck) s += ` 데크${deck}평`;
+  if (sun) s += ` 썬룸${sun}평`;
+  return s.trim();
+}
+
+// 품목에서 현장/이동 구분 산출
+function deriveMoveType(items: unknown): string {
+  if (!Array.isArray(items)) return "";
+  const hasVal = (kw: string) =>
+    items.some(
+      (x: any) =>
+        typeof x?.name === "string" &&
+        x.name.includes(kw) &&
+        parseFloat(String(x.amount ?? "").replace(/,/g, "")) > 0
+    );
+  if (hasVal("이동")) return "이동";
+  if (hasVal("현장")) return "현장";
+  return "";
 }
 
 export function permitLabel(code: string): string {
@@ -62,6 +102,8 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
     "balance:data->amounts->>balance",
     "permitType:data->>permitType",
     "ownerName:data->>ownerName",
+    "phone:data->client->>phone",
+    "items:data->items",
   ].join(",");
 
   const params = new URLSearchParams();
@@ -98,6 +140,9 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       salesperson: String(r.salesperson ?? ""),
       showroom: normalizeShowroom(r.showroom),
       permitType: String(r.permitType ?? ""),
+      phone: String(r.phone ?? ""),
+      pyeong: derivePyeong(r.items),
+      moveType: deriveMoveType(r.items),
     }))
     .filter((r) => r.downPayment > 0);
 }

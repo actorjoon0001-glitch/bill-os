@@ -4,6 +4,11 @@ import {
   isEContractConfigured,
   type EContractRow,
 } from "@/lib/econtracts";
+import {
+  getIncentiveRates,
+  getIncentiveSettle,
+  type IncentiveSettle,
+} from "@/lib/settlement";
 import IncentiveTable from "./IncentiveTable";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +17,16 @@ export default async function IncentivesPage() {
   const configured = isEContractConfigured();
 
   let rows: EContractRow[] = [];
+  let rates: Record<string, number> = {};
+  let settle: Record<string, IncentiveSettle> = {};
   let error: string | null = null;
   if (configured) {
     try {
-      rows = await fetchCompletedContracts();
+      [rows, rates, settle] = await Promise.all([
+        fetchCompletedContracts(),
+        getIncentiveRates(),
+        getIncentiveSettle(),
+      ]);
     } catch (e) {
       error = e instanceof Error ? e.message : "전자계약서 조회 중 오류가 발생했습니다.";
     }
@@ -43,7 +54,7 @@ export default async function IncentivesPage() {
           <div className="text-xs text-slate-500 break-all">{error}</div>
         </div>
       ) : (
-        <IncentiveTable rows={rows} />
+        <IncentiveTable rows={rows} initialRates={rates} initialSettle={settle} />
       )}
     </div>
   );

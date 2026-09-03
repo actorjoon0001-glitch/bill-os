@@ -3,6 +3,7 @@
 // 서버 컴포넌트에서만 호출한다(키가 클라이언트로 노출되지 않도록).
 
 export type EContractRow = {
+  id: number; // 전자계약서(Contract-OS) 원본 id
   contractNo: string;
   clientName: string; // 건축주
   siteAddress: string; // 현장주소
@@ -87,6 +88,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
   if (!base || !key) return [];
 
   const select = [
+    "id",
     "contract_no",
     "client_name",
     "site_address",
@@ -127,6 +129,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
   const rows = (await res.json()) as Array<Record<string, unknown>>;
   return rows
     .map((r) => ({
+      id: Number(r.id) || 0,
       contractNo: String(r.contract_no ?? ""),
       clientName: String(r.client_name || r.ownerName || ""),
       siteAddress: String(r.site_address ?? ""),

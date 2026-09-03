@@ -6,6 +6,9 @@ import { permitLabel, type EContractRow } from "@/lib/econtracts";
 
 const fmtMan = (n: number) => n.toLocaleString("ko-KR");
 const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR"); // 만원 → 원
+// 전자계약서(Contract-OS) 원본 열기 URL (#/edit/<id>)
+const CONTRACT_OS_URL = "https://seum-contract-os.netlify.app";
+const originalUrl = (id: number) => `${CONTRACT_OS_URL}/#/edit/${id}`;
 const monthOf = (date: string) => (date || "").slice(0, 7);
 const monthLabel = (m: string) => {
   const [y, mo] = m.split("-");
@@ -220,7 +223,7 @@ export default function EContractsTable({
                   <th className="th">진행사항</th>
                   <th className="th">사업자명</th>
                   {PAYMENTS.map((p) => (
-                    <th key={p.key} className="th text-right whitespace-nowrap">
+                    <th key={p.key} className="th whitespace-nowrap">
                       {p.label}
                     </th>
                   ))}
@@ -320,19 +323,21 @@ export default function EContractsTable({
                       {PAYMENTS.map((p) => {
                         const cell = m.extra?.[p.key] || {};
                         return (
-                          <td key={p.key} className="td">
-                            <input
-                              value={cell.amt || ""}
-                              onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
-                              placeholder="금액"
-                              className="input py-1 w-28 text-right"
-                            />
-                            <input
-                              value={cell.memo || ""}
-                              onChange={(e) => setExtra(r.contractNo, p.key, "memo", e.target.value)}
-                              placeholder="메모(예: 8/14 입금)"
-                              className="input py-1 w-36 mt-1 text-xs"
-                            />
+                          <td key={p.key} className="td align-top">
+                            <div className="flex flex-col gap-1 w-36">
+                              <input
+                                value={cell.amt || ""}
+                                onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
+                                placeholder="금액"
+                                className="input py-1 w-full text-right"
+                              />
+                              <input
+                                value={cell.memo || ""}
+                                onChange={(e) => setExtra(r.contractNo, p.key, "memo", e.target.value)}
+                                placeholder="메모(예: 8/14 입금)"
+                                className="input py-1 w-full text-xs"
+                              />
+                            </div>
                           </td>
                         );
                       })}
@@ -350,6 +355,16 @@ export default function EContractsTable({
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                                 {permitLabel(r.permitType)}
                               </span>
+                              {r.id > 0 && (
+                                <a
+                                  href={originalUrl(r.id)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ml-auto btn-primary text-xs py-1 px-3"
+                                >
+                                  전자계약서 원본 열기 ↗
+                                </a>
+                              )}
                             </div>
 
                             {/* 계약 정보 */}

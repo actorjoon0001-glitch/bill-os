@@ -19,6 +19,7 @@ export type EContractRow = {
   phone: string; // 연락처 (건축주)
   pyeong: string; // 계약평수 (품목에서 산출, 예: '19평 포치6평')
   moveType: string; // 현장/이동 구분
+  items: { name: string; unit: string; area: string; amount: string }[]; // 주문내용(상세용)
 };
 
 const num = (v: unknown) => {
@@ -143,6 +144,16 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       phone: String(r.phone ?? ""),
       pyeong: derivePyeong(r.items),
       moveType: deriveMoveType(r.items),
+      items: Array.isArray(r.items)
+        ? (r.items as any[])
+            .filter((x) => x?.name)
+            .map((x) => ({
+              name: String(x.name ?? ""),
+              unit: String(x.unit ?? ""),
+              area: String(x.area ?? ""),
+              amount: String(x.amount ?? ""),
+            }))
+        : [],
     }))
     .filter((r) => r.downPayment > 0);
 }

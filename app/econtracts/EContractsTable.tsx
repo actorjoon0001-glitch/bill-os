@@ -48,6 +48,8 @@ export default function EContractsTable({
   const [q, setQ] = useState("");
   const [showroom, setShowroom] = useState("ALL");
   const [month, setMonth] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
   const [openNo, setOpenNo] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -125,6 +127,8 @@ export default function EContractsTable({
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (month !== "ALL" && monthOf(r.contractDate) !== month) return false;
+      if (dateFrom && r.contractDate < dateFrom) return false;
+      if (dateTo && r.contractDate > dateTo) return false;
       if (showroom !== "ALL" && r.showroom !== showroom) return false;
       if (q) {
         const t = `${r.contractNo} ${r.clientName} ${r.siteAddress} ${r.salesperson} ${r.phone}`.toLowerCase();
@@ -132,7 +136,7 @@ export default function EContractsTable({
       }
       return true;
     });
-  }, [rows, q, showroom, month]);
+  }, [rows, q, showroom, month, dateFrom, dateTo]);
 
   const sum = useMemo(
     () => ({
@@ -191,6 +195,35 @@ export default function EContractsTable({
             </option>
           ))}
         </select>
+        <div className="flex items-center gap-1 text-sm text-slate-500">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="input w-auto py-1"
+            aria-label="시작일"
+          />
+          <span>~</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="input w-auto py-1"
+            aria-label="종료일"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="text-xs text-slate-400 hover:text-slate-600 underline ml-1"
+            >
+              날짜 초기화
+            </button>
+          )}
+        </div>
         <select
           className="input w-auto"
           value={showroom}

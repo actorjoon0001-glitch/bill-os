@@ -40,6 +40,8 @@ export default function IncentiveTable({
   initialSettle?: Record<string, IncentiveSettle>;
 }) {
   const [month, setMonth] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   // rates: 'name' = 영업사원 기본 요율, 'name::계약번호' = 계약건별 개별 요율
   const [rates, setRates] = useState<Record<string, number>>(initialRates);
   const [settle, setSettle] = useState<Record<string, IncentiveSettle>>(initialSettle);
@@ -71,7 +73,10 @@ export default function IncentiveTable({
     debounce(`rate:${key}`, () => saveRate(key, value));
   };
 
-  const keyOf = (name: string) => `${month}::${name}`; // 지급여부/메모: 기간별
+  // 지급여부/메모 저장 기간 키: 월 선택 우선, 없으면 날짜범위, 둘 다 없으면 전체
+  const periodKey =
+    month !== "ALL" ? month : dateFrom || dateTo ? `${dateFrom}~${dateTo}` : "ALL";
+  const keyOf = (name: string) => `${periodKey}::${name}`;
   const setPaidState = (name: string, value: boolean) => {
     const id = keyOf(name);
     setSettle((prev) => ({ ...prev, [id]: { paid: value, memo: prev[id]?.memo || "" } }));
@@ -92,8 +97,14 @@ export default function IncentiveTable({
   );
 
   const filtered = useMemo(
-    () => (month === "ALL" ? rows : rows.filter((r) => monthOf(r.contractDate) === month)),
-    [rows, month]
+    () =>
+      rows.filter((r) => {
+        if (month !== "ALL" && monthOf(r.contractDate) !== month) return false;
+        if (dateFrom && r.contractDate < dateFrom) return false;
+        if (dateTo && r.contractDate > dateTo) return false;
+        return true;
+      }),
+    [rows, month, dateFrom, dateTo]
   );
 
   const aggs = useMemo<Agg[]>(() => {
@@ -154,6 +165,41 @@ export default function IncentiveTable({
             </option>
           ))}
         </select>
+        <div className="flex items-center gap-1 text-sm text-slate-500">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setOpen(null);
+            }}
+            className="input w-auto py-1"
+            aria-label="시작일"
+          />
+          <span>~</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setOpen(null);
+            }}
+            className="input w-auto py-1"
+            aria-label="종료일"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="text-xs text-slate-400 hover:text-slate-600 underline ml-1"
+            >
+              날짜 초기화
+            </button>
+          )}
+        </div>
         <div className="card px-4 py-2">
           <span className="text-xs text-slate-400">대상 </span>
           <span className="font-bold text-slate-800 tabular-nums">{aggs.length}</span>

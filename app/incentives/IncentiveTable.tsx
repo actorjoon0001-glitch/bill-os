@@ -254,6 +254,35 @@ export default function IncentiveTable({
         </div>
       </div>
 
+      {/* 전시장별 인센티브 총액 요약 */}
+      <div className="mb-5">
+        <div className="text-sm font-bold text-slate-700 mb-2.5">전시장별 인센티브 총액</div>
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))]">
+          {showroomSummary.map((s) => (
+            <div key={s.showroom} className="card px-4 py-3">
+              <div className="text-xs text-slate-500 truncate" title={s.showroom}>
+                🏬 {s.showroom}
+              </div>
+              <div className="mt-1.5 text-xl font-bold text-red-600 tabular-nums leading-none">
+                {fmtWon(s.incentive)}
+              </div>
+              <div className="mt-1.5 text-[11px] text-slate-400">
+                {s.count}건 · 영업 {s.people}명 · 공급가액 {fmtMan(s.supply)}만원
+              </div>
+            </div>
+          ))}
+          <div className="card px-4 py-3 bg-red-50 border-red-200">
+            <div className="text-xs font-semibold text-red-700">전체 합계</div>
+            <div className="mt-1.5 text-xl font-extrabold text-red-600 tabular-nums leading-none">
+              {fmtWon(totalIncentive)}
+            </div>
+            <div className="mt-1.5 text-[11px] text-red-400">
+              전시장 {groups.length}곳 · 영업 {distinctPeople}명
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px]">

@@ -43,6 +43,9 @@ type Manual = {
       confirmed?: boolean;
       confirmedBy?: string;
       confirmedAt?: string;
+      editedBy?: string;
+      editedAt?: string;
+      editedFrom?: string;
     }
   > | null;
 };
@@ -123,6 +126,30 @@ export default function EContractsTable({
         ...(row.extra || {}),
         [key]: { ...((row.extra || {})[key] || {}), [sub]: value },
       };
+      const nextRow: Manual = { ...row, extra };
+      const next = { ...prev, [no]: nextRow };
+      persistRow(no, nextRow);
+      return next;
+    });
+  };
+
+  // 금액 수정: 수정자·시각·원래금액(자동값) 함께 기록
+  const setAmount = (no: string, key: string, value: string, autoAmt: string) => {
+    setManual((prev) => {
+      const row = prev[no] || {};
+      const prevCell = (row.extra || {})[key] || {};
+      let nextCell = { ...prevCell, amt: value };
+      if (value !== "") {
+        nextCell.editedBy = currentUser || "담당자";
+        nextCell.editedAt = new Date().toISOString();
+        // 원래 금액(자동값)을 최초 수정 시 1회 기록
+        if (prevCell.editedFrom === undefined) nextCell.editedFrom = autoAmt || "";
+      } else {
+        // 비우면 수정 기록 해제(자동값으로 복귀)
+        const { editedBy, editedAt, editedFrom, ...rest } = nextCell;
+        nextCell = rest;
+      }
+      const extra = { ...(row.extra || {}), [key]: nextCell };
       const nextRow: Manual = { ...row, extra };
       const next = { ...prev, [no]: nextRow };
       persistRow(no, nextRow);
@@ -366,13 +393,17 @@ export default function EContractsTable({
                       <td className="td text-right tabular-nums font-semibold whitespace-nowrap">
                         {(() => {
                           const e = m.extra || {};
-                          // 계약금은 수동 입력값 우선, 없으면 전자계약서 계약금(자동) 적용
-                          const depositWon = e.deposit?.amt
-                            ? num(e.deposit.amt)
-                            : r.downPayment * 10000;
-                          const received =
-                            depositWon +
-                            ["mid1", "mid2", "mid3"].reduce((s, k) => s + num(e[k]?.amt), 0);
+                          // 수동 입력값 우선, 없으면 전자계약서 스케줄(자동) 적용
+                          const sched: Record<string, number> = {
+                            deposit: r.downPayment,
+                            mid1: r.interim1,
+                            mid2: r.interim2,
+                            mid3: r.interim3,
+                          };
+                          const received = Object.keys(sched).reduce(
+                            (s, k) => s + (e[k]?.amt ? num(e[k]?.amt) : sched[k] * 10000),
+                            0
+                          );
                           const rem = r.productTotal * 10000 - received; // 원
                           const cls =
                             rem < 0
@@ -430,12 +461,20 @@ export default function EContractsTable({
                       {PAYMENTS.map((p) => {
                         const cell = m.extra?.[p.key] || {};
                         // 자동 채움(만원→원):
-                        //  - 계약금(deposit): 전자계약서 영업팀 계약금(downPayment)
-                        //  - 추가금1·2(add1/add2): '추가 사항·변경 이력'(history)
+                        //  - 계약금/중도금1~3/남은잔금: 전자계약서 결제 스케줄
+                        //  - 추가금1·2: '추가 사항·변경 이력'(history)
+                        const scheduleMan: Record<string, number> = {
+                          deposit: r.downPayment,
+                          mid1: r.interim1,
+                          mid2: r.interim2,
+                          mid3: r.interim3,
+                          remain: r.balance,
+                        };
+                        const isSchedule = scheduleMan[p.key] !== undefined;
                         let autoAmt = "";
                         let autoMemo = "";
-                        if (p.key === "deposit" && r.downPayment > 0) {
-                          autoAmt = String(r.downPayment * 10000);
+                        if (isSchedule) {
+                          if (scheduleMan[p.key] > 0) autoAmt = String(scheduleMan[p.key] * 10000);
                         } else if (p.key === "add1" || p.key === "add2") {
                           const h = r.history[p.key === "add1" ? 0 : 1];
                           if (h) {
@@ -447,14 +486,13 @@ export default function EContractsTable({
                         const hasMemo = cell.memo !== undefined && cell.memo !== "";
                         const isAuto = !hasAmt && !!autoAmt; // 자동값 표시 중
                         const confirmed = Boolean(cell.confirmed);
-                        const isDeposit = p.key === "deposit";
-                        // 계약금은 값(자동/수정)이 있으면 항상 확인 대상, 추가금은 자동값일 때만
-                        const showConfirm = isDeposit
+                        // 스케줄 항목(계약금/중도금/잔금)은 값이 있으면 항상 확인 대상
+                        const showConfirm = isSchedule
                           ? !!autoAmt || hasAmt
                           : !!autoAmt && !hasAmt;
-                        // 색: 부가세 증빙=빨강 우선, 미확인 자동값/계약금=파랑, 확인됨/수동=검정
+                        // 색: 부가세 증빙=빨강 우선, 미확인 자동값=파랑, 확인됨/수동=검정
                         const blue =
-                          !cell.taxed && !confirmed && (isDeposit ? true : isAuto);
+                          !cell.taxed && !confirmed && (isSchedule ? !!autoAmt || hasAmt : isAuto);
                         const amtClass = cell.taxed
                           ? "text-red-600 font-semibold"
                           : blue
@@ -465,7 +503,9 @@ export default function EContractsTable({
                             <div className="flex flex-col gap-1 w-36">
                               <input
                                 value={hasAmt ? cell.amt || "" : autoAmt}
-                                onChange={(e) => setExtra(r.contractNo, p.key, "amt", e.target.value)}
+                                onChange={(e) =>
+                                  setAmount(r.contractNo, p.key, e.target.value, autoAmt)
+                                }
                                 placeholder="금액"
                                 className={`input py-1 w-full text-right ${amtClass}`}
                               />
@@ -477,6 +517,19 @@ export default function EContractsTable({
                                   !hasMemo && autoMemo ? "text-blue-600" : ""
                                 }`}
                               />
+                              {hasAmt && cell.editedBy && (
+                                <div className="text-[10px] text-amber-600 leading-tight">
+                                  ✎ {cell.editedBy}
+                                  {cell.editedAt ? ` · ${fmtDateTime(cell.editedAt)}` : ""}
+                                  {num(cell.editedFrom) > 0 && (
+                                    <span className="text-slate-400">
+                                      {" "}
+                                      · {num(cell.editedFrom).toLocaleString("ko-KR")} →{" "}
+                                      {num(cell.amt).toLocaleString("ko-KR")}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {showConfirm && (
                                 <div className="text-[10px] leading-tight">
                                   <label className="flex items-center gap-1 cursor-pointer select-none">

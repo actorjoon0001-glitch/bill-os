@@ -25,6 +25,9 @@ export type SheetManual = {
       confirmed?: boolean;
       confirmedBy?: string;
       confirmedAt?: string;
+      editedBy?: string;
+      editedAt?: string;
+      editedFrom?: string;
     }
   > | null;
 };

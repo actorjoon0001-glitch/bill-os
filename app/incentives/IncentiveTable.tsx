@@ -485,22 +485,6 @@ export default function IncentiveTable({
               })}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-300">
-              {/* 전시장별 인센티브 총액 (전체 합계 위 요약) */}
-              {showroomSummary.map((s) => (
-                <tr key={s.showroom} className="border-b border-slate-100">
-                  <td className="td text-slate-600" colSpan={4}>
-                    🏬 {s.showroom} 인센티브 총액
-                    <span className="ml-2 text-xs text-slate-400">
-                      {s.count}건 · 영업 {s.people}명
-                    </span>
-                  </td>
-                  <td className="td text-right tabular-nums font-semibold text-red-600">
-                    {fmtWon(s.incentive)}
-                  </td>
-                  <td className="td"></td>
-                  <td className="td"></td>
-                </tr>
-              ))}
               <tr>
                 <td className="td font-bold text-slate-700">전체 합계</td>
                 <td className="td"></td>

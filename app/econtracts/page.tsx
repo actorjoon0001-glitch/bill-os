@@ -4,13 +4,21 @@ import {
   isEContractConfigured,
   type EContractRow,
 } from "@/lib/econtracts";
-import { getSheetAll, type SheetManual } from "@/lib/settlement";
+import { cookies } from "next/headers";
+import { getSheetAll, getUserName, type SheetManual } from "@/lib/settlement";
+import { AUTH_COOKIE, SESSION_SECRET } from "@/lib/auth";
+import { verifySession } from "@/lib/session";
 import EContractsTable from "./EContractsTable";
 
 export const dynamic = "force-dynamic";
 
 export default async function EContractsPage() {
   const configured = isEContractConfigured();
+
+  // 로그인 사용자(확인자 표시용)
+  const token = cookies().get(AUTH_COOKIE)?.value;
+  const session = await verifySession(token, SESSION_SECRET);
+  const currentUser = session ? await getUserName(session.email) : "";
 
   let rows: EContractRow[] = [];
   let manual: Record<string, SheetManual> = {};
@@ -52,7 +60,7 @@ export default async function EContractsPage() {
           <div className="text-xs text-slate-500 break-all">{error}</div>
         </div>
       ) : (
-        <EContractsTable rows={rows} initialManual={manual} />
+        <EContractsTable rows={rows} initialManual={manual} currentUser={currentUser} />
       )}
     </div>
   );

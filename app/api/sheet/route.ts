@@ -14,7 +14,14 @@ export async function POST(req: NextRequest) {
         biz?: string;
         extra?: Record<
           string,
-          { amt?: string; memo?: string; taxed?: boolean; confirmed?: boolean }
+          {
+            amt?: string;
+            memo?: string;
+            taxed?: boolean;
+            confirmed?: boolean;
+            confirmedBy?: string;
+            confirmedAt?: string;
+          }
         >;
       };
     };

@@ -5,6 +5,18 @@ import { EmptyState } from "@/components/ui";
 import { permitLabel, type EContractRow } from "@/lib/econtracts";
 
 const fmtMan = (n: number) => n.toLocaleString("ko-KR");
+const fmtDateTime = (iso?: string) => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(
+      d.getMinutes()
+    )}`;
+  } catch {
+    return iso.slice(0, 16).replace("T", " ");
+  }
+};
 const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR"); // 만원 → 원
 // 전자계약서(Contract-OS) 원본 열기 URL (#/edit/<id>)
 const CONTRACT_OS_URL = "https://seum-contract-os.netlify.app";
@@ -24,7 +36,14 @@ type Manual = {
   biz?: string | null;
   extra?: Record<
     string,
-    { amt?: string; memo?: string; taxed?: boolean; confirmed?: boolean }
+    {
+      amt?: string;
+      memo?: string;
+      taxed?: boolean;
+      confirmed?: boolean;
+      confirmedBy?: string;
+      confirmedAt?: string;
+    }
   > | null;
 };
 
@@ -44,9 +63,11 @@ type MonthAgg = { month: string; count: number; down: number; product: number };
 export default function EContractsTable({
   rows,
   initialManual = {},
+  currentUser = "",
 }: {
   rows: EContractRow[];
   initialManual?: Record<string, Manual>;
+  currentUser?: string;
 }) {
   const [q, setQ] = useState("");
   const [showroom, setShowroom] = useState("ALL");
@@ -102,6 +123,27 @@ export default function EContractsTable({
         ...(row.extra || {}),
         [key]: { ...((row.extra || {})[key] || {}), [sub]: value },
       };
+      const nextRow: Manual = { ...row, extra };
+      const next = { ...prev, [no]: nextRow };
+      persistRow(no, nextRow);
+      return next;
+    });
+  };
+
+  // 경영지원 확인 체크: 확인자·시각 함께 기록
+  const setConfirm = (no: string, key: string, checked: boolean) => {
+    setManual((prev) => {
+      const row = prev[no] || {};
+      const prevCell = (row.extra || {})[key] || {};
+      const nextCell = checked
+        ? {
+            ...prevCell,
+            confirmed: true,
+            confirmedBy: currentUser || "담당자",
+            confirmedAt: new Date().toISOString(),
+          }
+        : { ...prevCell, confirmed: false };
+      const extra = { ...(row.extra || {}), [key]: nextCell };
       const nextRow: Manual = { ...row, extra };
       const next = { ...prev, [no]: nextRow };
       persistRow(no, nextRow);
@@ -405,11 +447,17 @@ export default function EContractsTable({
                         const hasMemo = cell.memo !== undefined && cell.memo !== "";
                         const isAuto = !hasAmt && !!autoAmt; // 자동값 표시 중
                         const confirmed = Boolean(cell.confirmed);
-                        const showConfirm = !!autoAmt && !hasAmt; // 자동값이면 경영지원팀 확인 체크 노출
-                        // 색: 부가세 증빙=빨강 우선, 자동(미확인)=파랑, 확인됨/수동=검정
+                        const isDeposit = p.key === "deposit";
+                        // 계약금은 값(자동/수정)이 있으면 항상 확인 대상, 추가금은 자동값일 때만
+                        const showConfirm = isDeposit
+                          ? !!autoAmt || hasAmt
+                          : !!autoAmt && !hasAmt;
+                        // 색: 부가세 증빙=빨강 우선, 미확인 자동값/계약금=파랑, 확인됨/수동=검정
+                        const blue =
+                          !cell.taxed && !confirmed && (isDeposit ? true : isAuto);
                         const amtClass = cell.taxed
                           ? "text-red-600 font-semibold"
-                          : isAuto && !confirmed
+                          : blue
                           ? "text-blue-600 font-semibold"
                           : "";
                         return (
@@ -430,25 +478,33 @@ export default function EContractsTable({
                                 }`}
                               />
                               {showConfirm && (
-                                <label className="flex items-center gap-1 text-[10px] cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={confirmed}
-                                    onChange={(e) =>
-                                      setExtra(r.contractNo, p.key, "confirmed", e.target.checked)
-                                    }
-                                    className="h-3 w-3 rounded border-slate-300 text-slate-600 focus:ring-slate-500"
-                                  />
-                                  <span
-                                    className={
-                                      confirmed
-                                        ? "text-slate-500 font-medium"
-                                        : "text-blue-600 font-medium"
-                                    }
-                                  >
-                                    {confirmed ? "확인됨" : "확인(경영지원)"}
-                                  </span>
-                                </label>
+                                <div className="text-[10px] leading-tight">
+                                  <label className="flex items-center gap-1 cursor-pointer select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={confirmed}
+                                      onChange={(e) =>
+                                        setConfirm(r.contractNo, p.key, e.target.checked)
+                                      }
+                                      className="h-3 w-3 rounded border-slate-300 text-slate-600 focus:ring-slate-500"
+                                    />
+                                    <span
+                                      className={
+                                        confirmed
+                                          ? "text-slate-500 font-medium"
+                                          : "text-blue-600 font-medium"
+                                      }
+                                    >
+                                      {confirmed ? "확인됨" : "확인(경영지원)"}
+                                    </span>
+                                  </label>
+                                  {confirmed && cell.confirmedBy && (
+                                    <div className="text-slate-400 pl-4">
+                                      {cell.confirmedBy}
+                                      {cell.confirmedAt ? ` · ${fmtDateTime(cell.confirmedAt)}` : ""}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                               <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer select-none">
                                 <input

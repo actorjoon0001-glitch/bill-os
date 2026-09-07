@@ -18,11 +18,38 @@ export type SheetManual = {
   biz?: string | null;
   extra?: Record<
     string,
-    { amt?: string; memo?: string; taxed?: boolean; confirmed?: boolean }
+    {
+      amt?: string;
+      memo?: string;
+      taxed?: boolean;
+      confirmed?: boolean;
+      confirmedBy?: string;
+      confirmedAt?: string;
+    }
   > | null;
 };
 
 const ready = () => Boolean(supabaseRest() && supabaseKey());
+
+// 이메일로 직원 이름 조회 (확인자 표시용). 실패 시 이메일 반환.
+export async function getUserName(email: string): Promise<string> {
+  if (!ready() || !email) return email || "";
+  try {
+    const params = new URLSearchParams();
+    params.set("select", "name");
+    params.set("email", `ilike.${email}`);
+    params.set("limit", "1");
+    const res = await fetch(`${supabaseRest()}/employees?${params.toString()}`, {
+      headers: headers(),
+      cache: "no-store",
+    });
+    if (!res.ok) return email;
+    const rows = (await res.json()) as Array<{ name?: string }>;
+    return rows?.[0]?.name || email;
+  } catch {
+    return email;
+  }
+}
 
 // ---- 전자계약서 관리 시트 입력값 ----
 export async function getSheetAll(): Promise<Record<string, SheetManual>> {

@@ -22,7 +22,10 @@ type Manual = {
   worker?: string | null;
   progress?: string | null;
   biz?: string | null;
-  extra?: Record<string, { amt?: string; memo?: string; taxed?: boolean }> | null;
+  extra?: Record<
+    string,
+    { amt?: string; memo?: string; taxed?: boolean; confirmed?: boolean }
+  > | null;
 };
 
 // 돈 받을 때마다 기입하는 수납 항목 (금액 + 메모)
@@ -90,7 +93,7 @@ export default function EContractsTable({
   const setExtra = (
     no: string,
     key: string,
-    sub: "amt" | "memo" | "taxed",
+    sub: "amt" | "memo" | "taxed" | "confirmed",
     value: string | boolean
   ) => {
     setManual((prev) => {
@@ -321,10 +324,13 @@ export default function EContractsTable({
                       <td className="td text-right tabular-nums font-semibold whitespace-nowrap">
                         {(() => {
                           const e = m.extra || {};
-                          const received = ["deposit", "mid1", "mid2", "mid3"].reduce(
-                            (s, k) => s + num(e[k]?.amt),
-                            0
-                          );
+                          // 계약금은 수동 입력값 우선, 없으면 전자계약서 계약금(자동) 적용
+                          const depositWon = e.deposit?.amt
+                            ? num(e.deposit.amt)
+                            : r.downPayment * 10000;
+                          const received =
+                            depositWon +
+                            ["mid1", "mid2", "mid3"].reduce((s, k) => s + num(e[k]?.amt), 0);
                           const rem = r.productTotal * 10000 - received; // 원
                           const cls =
                             rem < 0
@@ -381,11 +387,14 @@ export default function EContractsTable({
                       </td>
                       {PAYMENTS.map((p) => {
                         const cell = m.extra?.[p.key] || {};
-                        // 추가금1·2는 계약의 '추가 사항·변경 이력'(history, 계약 후 추가 수납)에서
-                        // 항목이 있을 때만 자동 채움 (만원→원). 기타비용(extraCosts)은 총액에만 포함.
+                        // 자동 채움(만원→원):
+                        //  - 계약금(deposit): 전자계약서 영업팀 계약금(downPayment)
+                        //  - 추가금1·2(add1/add2): '추가 사항·변경 이력'(history)
                         let autoAmt = "";
                         let autoMemo = "";
-                        if (p.key === "add1" || p.key === "add2") {
+                        if (p.key === "deposit" && r.downPayment > 0) {
+                          autoAmt = String(r.downPayment * 10000);
+                        } else if (p.key === "add1" || p.key === "add2") {
                           const h = r.history[p.key === "add1" ? 0 : 1];
                           if (h) {
                             autoAmt = String(h.amount * 10000);
@@ -395,9 +404,12 @@ export default function EContractsTable({
                         const hasAmt = cell.amt !== undefined && cell.amt !== "";
                         const hasMemo = cell.memo !== undefined && cell.memo !== "";
                         const isAuto = !hasAmt && !!autoAmt; // 자동값 표시 중
+                        const confirmed = Boolean(cell.confirmed);
+                        const showConfirm = !!autoAmt && !hasAmt; // 자동값이면 경영지원팀 확인 체크 노출
+                        // 색: 부가세 증빙=빨강 우선, 자동(미확인)=파랑, 확인됨/수동=검정
                         const amtClass = cell.taxed
                           ? "text-red-600 font-semibold"
-                          : isAuto
+                          : isAuto && !confirmed
                           ? "text-blue-600 font-semibold"
                           : "";
                         return (
@@ -417,6 +429,27 @@ export default function EContractsTable({
                                   !hasMemo && autoMemo ? "text-blue-600" : ""
                                 }`}
                               />
+                              {showConfirm && (
+                                <label className="flex items-center gap-1 text-[10px] cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={confirmed}
+                                    onChange={(e) =>
+                                      setExtra(r.contractNo, p.key, "confirmed", e.target.checked)
+                                    }
+                                    className="h-3 w-3 rounded border-slate-300 text-slate-600 focus:ring-slate-500"
+                                  />
+                                  <span
+                                    className={
+                                      confirmed
+                                        ? "text-slate-500 font-medium"
+                                        : "text-blue-600 font-medium"
+                                    }
+                                  >
+                                    {confirmed ? "확인됨" : "확인(경영지원)"}
+                                  </span>
+                                </label>
+                              )}
                               <label className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer select-none">
                                 <input
                                   type="checkbox"

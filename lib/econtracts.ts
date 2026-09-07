@@ -13,6 +13,9 @@ export type EContractRow = {
   vat: number; // 부가세 (만원)
   downPayment: number; // 계약금 (만원)
   interim: number; // 중도금 합계 (만원, 중도금1~3)
+  interim1: number; // 중도금1 (만원)
+  interim2: number; // 중도금2 (만원)
+  interim3: number; // 중도금3 (만원)
   balance: number; // 잔금 (만원)
   salesperson: string; // 영업사원
   showroom: string; // 전시장
@@ -146,6 +149,9 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       vat: num(r.vat) || (num(r.total_amount) - (num(r.supply) || Math.round(num(r.total_amount) / 1.1))),
       downPayment: num(r.downPayment),
       interim: num(r.interim1) + num(r.interim2) + num(r.interim3),
+      interim1: num(r.interim1),
+      interim2: num(r.interim2),
+      interim3: num(r.interim3),
       balance: num(r.balance),
       salesperson: String(r.salesperson ?? ""),
       showroom: normalizeShowroom(r.showroom),

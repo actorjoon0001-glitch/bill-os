@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
             confirmed?: boolean;
             confirmedBy?: string;
             confirmedAt?: string;
+            editedBy?: string;
+            editedAt?: string;
+            editedFrom?: string;
           }
         >;
       };

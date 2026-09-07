@@ -33,7 +33,12 @@ export default function IncentiveTable({
   initialRates?: Record<string, number>;
   initialSettle?: Record<string, IncentiveSettle>;
 }) {
-  const [month, setMonth] = useState("ALL");
+  // 당월 (YYYY-MM, 로컬 기준) — 첫 화면 기본 선택
+  const thisMonth = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const [month, setMonth] = useState(thisMonth);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [rates, setRates] = useState<Record<string, number>>(initialRates);
@@ -108,13 +113,11 @@ export default function IncentiveTable({
     debounce(`memo:${id}`, () => saveSettle(id, { memo: value }));
   };
 
-  const months = useMemo(
-    () =>
-      Array.from(new Set(rows.map((r) => monthOf(r.contractDate)).filter(Boolean))).sort((a, b) =>
-        b.localeCompare(a)
-      ),
-    [rows]
-  );
+  const months = useMemo(() => {
+    const set = new Set(rows.map((r) => monthOf(r.contractDate)).filter(Boolean));
+    set.add(thisMonth); // 데이터가 없어도 당월은 선택 가능하도록
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [rows, thisMonth]);
 
   const filtered = useMemo(
     () =>

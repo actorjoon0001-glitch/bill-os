@@ -317,7 +317,7 @@ export default function IncentiveTable({
                         {fmtMan(g.supply)}
                       </td>
                       <td className="td"></td>
-                      <td className="td text-right tabular-nums font-bold text-emerald-600">
+                      <td className="td text-right tabular-nums font-bold text-red-600">
                         {fmtWon(groupIncentive)}
                       </td>
                       <td className="td text-center text-xs text-slate-400">

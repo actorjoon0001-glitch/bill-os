@@ -72,9 +72,14 @@ export default function EContractsTable({
   initialManual?: Record<string, Manual>;
   currentUser?: string;
 }) {
+  // 당월 (YYYY-MM, 로컬 기준) — 첫 화면 기본 선택
+  const thisMonth = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
   const [q, setQ] = useState("");
   const [showroom, setShowroom] = useState("ALL");
-  const [month, setMonth] = useState("ALL");
+  const [month, setMonth] = useState(thisMonth);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
@@ -193,8 +198,10 @@ export default function EContractsTable({
       cur.product += r.productTotal;
       m.set(key, cur);
     }
+    // 데이터가 없어도 당월은 선택 가능하도록 포함
+    if (!m.has(thisMonth)) m.set(thisMonth, { month: thisMonth, count: 0, down: 0, product: 0 });
     return Array.from(m.values()).sort((a, b) => b.month.localeCompare(a.month));
-  }, [rows]);
+  }, [rows, thisMonth]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {

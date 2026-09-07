@@ -168,6 +168,19 @@ export default function IncentiveTable({
     return set.size;
   }, [groups]);
 
+  // 전시장별 인센티브 요약 (요약 카드용)
+  const showroomSummary = useMemo(
+    () =>
+      groups.map((g) => ({
+        showroom: g.showroom,
+        count: g.count,
+        people: g.aggs.length,
+        supply: g.supply,
+        incentive: g.aggs.reduce((s, a) => s + incentiveOfAgg(g.showroom, a), 0),
+      })),
+    [groups, rates]
+  );
+
   if (rows.length === 0) {
     return <EmptyState>계약완료 + 계약금 입금된 계약이 없습니다.</EmptyState>;
   }
@@ -443,12 +456,28 @@ export default function IncentiveTable({
               })}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+              {/* 전시장별 인센티브 총액 (전체 합계 위 요약) */}
+              {showroomSummary.map((s) => (
+                <tr key={s.showroom} className="border-b border-slate-100">
+                  <td className="td text-slate-600" colSpan={4}>
+                    🏬 {s.showroom} 인센티브 총액
+                    <span className="ml-2 text-xs text-slate-400">
+                      {s.count}건 · 영업 {s.people}명
+                    </span>
+                  </td>
+                  <td className="td text-right tabular-nums font-semibold text-red-600">
+                    {fmtWon(s.incentive)}
+                  </td>
+                  <td className="td"></td>
+                  <td className="td"></td>
+                </tr>
+              ))}
               <tr>
                 <td className="td font-bold text-slate-700">전체 합계</td>
                 <td className="td"></td>
                 <td className="td text-right tabular-nums font-semibold">{fmtMan(totalSupply)}</td>
                 <td className="td"></td>
-                <td className="td text-right tabular-nums font-bold text-emerald-600">
+                <td className="td text-right tabular-nums font-bold text-red-600">
                   {fmtWon(totalIncentive)}
                 </td>
                 <td className="td"></td>

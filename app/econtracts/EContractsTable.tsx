@@ -317,7 +317,24 @@ export default function EContractsTable({
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-auto max-h-[75vh]">
-            <table className="w-full min-w-[2800px] text-sm">
+            <table className="table-fixed w-full min-w-[2600px] text-sm">
+              <colgroup>
+                <col style={{ width: 100 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 190 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 180 }} />
+                <col style={{ width: 90 }} />
+                <col style={{ width: 170 }} />
+                <col style={{ width: 110 }} />
+                {PAYMENTS.map((p) => (
+                  <col key={p.key} style={{ width: 160 }} />
+                ))}
+              </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                 <tr>
                   <th className="th whitespace-nowrap">계약일</th>
@@ -366,10 +383,12 @@ export default function EContractsTable({
                           </span>
                         </button>
                       </td>
-                      <td className="td font-medium text-slate-800 whitespace-nowrap">
-                        {r.clientName || "-"}
+                      <td className="td font-medium text-slate-800">
+                        <div className="truncate" title={r.clientName}>
+                          {r.clientName || "-"}
+                        </div>
                       </td>
-                      <td className="td text-slate-600 whitespace-nowrap">{r.pyeong || "-"}</td>
+                      <td className="td text-slate-600">{r.pyeong || "-"}</td>
                       <td className="td text-center whitespace-nowrap">
                         {r.moveType ? (
                           <span
@@ -385,7 +404,11 @@ export default function EContractsTable({
                           "-"
                         )}
                       </td>
-                      <td className="td text-slate-600 min-w-[180px]">{r.siteAddress || "-"}</td>
+                      <td className="td text-slate-600">
+                        <div className="truncate" title={r.siteAddress}>
+                          {r.siteAddress || "-"}
+                        </div>
+                      </td>
                       <td className="td text-slate-600 whitespace-nowrap">{r.phone || "-"}</td>
                       <td className="td text-right tabular-nums font-semibold whitespace-nowrap">
                         {fmtWon(r.productTotal)}
@@ -420,11 +443,13 @@ export default function EContractsTable({
                           onChange={(e) => setField(r.contractNo, "evidence", e.target.value)}
                           placeholder="세금계산서 발행 등"
                           rows={2}
-                          className="input py-1 min-w-[180px] resize-y"
+                          className="input py-1 w-full resize-y"
                         />
                       </td>
-                      <td className="td text-slate-700 whitespace-nowrap">
-                        {r.salesperson || "-"}
+                      <td className="td text-slate-700">
+                        <div className="truncate" title={r.salesperson}>
+                          {r.salesperson || "-"}
+                        </div>
                       </td>
                       <td className="td">
                         <textarea
@@ -432,7 +457,7 @@ export default function EContractsTable({
                           onChange={(e) => setField(r.contractNo, "progress", e.target.value)}
                           placeholder="진행사항"
                           rows={2}
-                          className={`input py-1 min-w-[150px] resize-y ${
+                          className={`input py-1 w-full resize-y ${
                             m.extra?.__progress?.taxed ? "text-red-600 font-semibold" : ""
                           }`}
                         />
@@ -455,7 +480,7 @@ export default function EContractsTable({
                           value={m.biz || ""}
                           onChange={(e) => setField(r.contractNo, "biz", e.target.value)}
                           placeholder="사업자명"
-                          className="input py-1 w-28"
+                          className="input py-1 w-full"
                         />
                       </td>
                       {PAYMENTS.map((p) => {

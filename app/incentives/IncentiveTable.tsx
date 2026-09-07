@@ -254,50 +254,6 @@ export default function IncentiveTable({
         </div>
       </div>
 
-      {/* 전시장별 인센티브 요약 */}
-      <div className="card overflow-hidden mb-4">
-        <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50/70">
-          <span className="text-sm font-bold text-slate-700">전시장별 인센티브 요약</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
-              <tr>
-                <th className="th">전시장</th>
-                <th className="th text-right">계약 건수</th>
-                <th className="th text-right">영업사원</th>
-                <th className="th text-right">공급가액 합계(만원)</th>
-                <th className="th text-right">인센티브(원)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {showroomSummary.map((s) => (
-                <tr key={s.showroom} className="hover:bg-slate-50/60">
-                  <td className="td font-semibold text-brand-700">🏬 {s.showroom}</td>
-                  <td className="td text-right tabular-nums">{s.count}건</td>
-                  <td className="td text-right tabular-nums">{s.people}명</td>
-                  <td className="td text-right tabular-nums">{fmtMan(s.supply)}</td>
-                  <td className="td text-right tabular-nums font-bold text-emerald-600">
-                    {fmtWon(s.incentive)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-slate-50 border-t-2 border-slate-300">
-              <tr>
-                <td className="td font-bold text-slate-700">전체 합계</td>
-                <td className="td"></td>
-                <td className="td text-right tabular-nums text-slate-500">{distinctPeople}명</td>
-                <td className="td text-right tabular-nums font-semibold">{fmtMan(totalSupply)}</td>
-                <td className="td text-right tabular-nums font-bold text-emerald-600">
-                  {fmtWon(totalIncentive)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px]">
@@ -500,12 +456,28 @@ export default function IncentiveTable({
               })}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-300">
+              {/* 전시장별 인센티브 총액 (전체 합계 위 요약) */}
+              {showroomSummary.map((s) => (
+                <tr key={s.showroom} className="border-b border-slate-100">
+                  <td className="td text-slate-600" colSpan={4}>
+                    🏬 {s.showroom} 인센티브 총액
+                    <span className="ml-2 text-xs text-slate-400">
+                      {s.count}건 · 영업 {s.people}명
+                    </span>
+                  </td>
+                  <td className="td text-right tabular-nums font-semibold text-red-600">
+                    {fmtWon(s.incentive)}
+                  </td>
+                  <td className="td"></td>
+                  <td className="td"></td>
+                </tr>
+              ))}
               <tr>
                 <td className="td font-bold text-slate-700">전체 합계</td>
                 <td className="td"></td>
                 <td className="td text-right tabular-nums font-semibold">{fmtMan(totalSupply)}</td>
                 <td className="td"></td>
-                <td className="td text-right tabular-nums font-bold text-emerald-600">
+                <td className="td text-right tabular-nums font-bold text-red-600">
                   {fmtWon(totalIncentive)}
                 </td>
                 <td className="td"></td>

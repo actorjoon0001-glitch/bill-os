@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui";
 import { permitLabel, type EContractRow } from "@/lib/econtracts";
 
@@ -83,6 +83,31 @@ export default function EContractsTable({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false); // 계약금 미확인건만 보기
+
+  // 계약완료 건수 증가분(+N) — 마지막으로 본 건수를 브라우저에 기억
+  const SEEN_KEY = "seum_econtracts_seen_count";
+  const [newCount, setNewCount] = useState(0);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SEEN_KEY);
+      const seen = raw == null ? NaN : parseInt(raw, 10);
+      if (!Number.isFinite(seen)) {
+        // 첫 방문: 현재 건수를 기준으로 저장(배지 미표시)
+        localStorage.setItem(SEEN_KEY, String(rows.length));
+        setNewCount(0);
+      } else {
+        setNewCount(Math.max(0, rows.length - seen));
+      }
+    } catch {
+      setNewCount(0);
+    }
+  }, [rows.length]);
+  const ackNewCount = () => {
+    try {
+      localStorage.setItem(SEEN_KEY, String(rows.length));
+    } catch {}
+    setNewCount(0);
+  };
   const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
   const [openNo, setOpenNo] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -255,6 +280,16 @@ export default function EContractsTable({
           </div>
           <div className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">
             {sum.count.toLocaleString("ko-KR")}건
+            {newCount > 0 && (
+              <button
+                type="button"
+                onClick={ackNewCount}
+                title="지난 방문 이후 새로 추가된 계약완료 건 · 클릭하면 확인 처리"
+                className="ml-2 align-middle rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-200"
+              >
+                +{newCount}
+              </button>
+            )}
           </div>
         </div>
         <div className="card p-4">

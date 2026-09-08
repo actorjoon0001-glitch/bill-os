@@ -82,6 +82,7 @@ export default function EContractsTable({
   const [month, setMonth] = useState(thisMonth);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false); // 계약금 미확인건만 보기
   const [manual, setManual] = useState<Record<string, Manual>>(initialManual);
   const [openNo, setOpenNo] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -203,7 +204,10 @@ export default function EContractsTable({
     return Array.from(m.values()).sort((a, b) => b.month.localeCompare(a.month));
   }, [rows, thisMonth]);
 
-  const filtered = useMemo(() => {
+  // 계약금(deposit) 경영지원팀 확인 여부
+  const isDepositConfirmed = (no: string) => Boolean(manual[no]?.extra?.deposit?.confirmed);
+
+  const baseFiltered = useMemo(() => {
     return rows.filter((r) => {
       if (month !== "ALL" && monthOf(r.contractDate) !== month) return false;
       if (dateFrom && r.contractDate < dateFrom) return false;
@@ -217,13 +221,24 @@ export default function EContractsTable({
     });
   }, [rows, q, showroom, month, dateFrom, dateTo]);
 
+  // 계약금 미확인 건수(현재 기간·필터 기준, '미확인만 보기' 토글과 무관)
+  const unconfirmedCount = useMemo(
+    () => baseFiltered.filter((r) => !isDepositConfirmed(r.contractNo)).length,
+    [baseFiltered, manual]
+  );
+
+  const filtered = useMemo(
+    () => (onlyUnconfirmed ? baseFiltered.filter((r) => !isDepositConfirmed(r.contractNo)) : baseFiltered),
+    [baseFiltered, onlyUnconfirmed, manual]
+  );
+
   const sum = useMemo(
     () => ({
-      count: filtered.length,
-      down: filtered.reduce((s, r) => s + r.downPayment, 0),
-      product: filtered.reduce((s, r) => s + r.productTotal, 0),
+      count: baseFiltered.length,
+      down: baseFiltered.reduce((s, r) => s + r.downPayment, 0),
+      product: baseFiltered.reduce((s, r) => s + r.productTotal, 0),
     }),
-    [filtered]
+    [baseFiltered]
   );
 
   if (rows.length === 0) {
@@ -233,7 +248,7 @@ export default function EContractsTable({
   return (
     <div>
       {/* 요약 (현재 필터 기준) */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="card p-4">
           <div className="text-xs text-slate-400">
             계약완료 건수{month !== "ALL" ? ` · ${monthLabel(month)}` : ""}
@@ -256,6 +271,28 @@ export default function EContractsTable({
             <span className="text-sm font-medium text-slate-400"> 만원</span>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setOnlyUnconfirmed((v) => !v)}
+          className={`card p-4 text-left transition ${
+            onlyUnconfirmed ? "ring-2 ring-amber-400 bg-amber-50" : "hover:bg-amber-50/50"
+          }`}
+          title="클릭하면 계약금 미확인건만 보기"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400">계약금 미확인</span>
+            {onlyUnconfirmed && (
+              <span className="text-[10px] font-medium text-amber-600">필터 적용중</span>
+            )}
+          </div>
+          <div
+            className={`mt-1 text-2xl font-bold tabular-nums ${
+              unconfirmedCount > 0 ? "text-amber-600" : "text-slate-300"
+            }`}
+          >
+            {unconfirmedCount.toLocaleString("ko-KR")}건
+          </div>
+        </button>
       </div>
 
       {/* 필터 */}
@@ -367,9 +404,14 @@ export default function EContractsTable({
                 {filtered.map((r) => {
                   const m = manual[r.contractNo] || {};
                   const isOpen = openNo === r.contractNo;
+                  const depositUnconfirmed = !isDepositConfirmed(r.contractNo);
                   return (
                     <Fragment key={r.contractNo}>
-                    <tr className={`hover:bg-slate-50/40 align-top ${isOpen ? "bg-brand-50/40" : ""}`}>
+                    <tr
+                      className={`hover:bg-slate-50/40 align-top ${
+                        isOpen ? "bg-brand-50/40" : depositUnconfirmed ? "bg-amber-50/40" : ""
+                      }`}
+                    >
                       <td className="td whitespace-nowrap">
                         <button
                           type="button"
@@ -387,6 +429,11 @@ export default function EContractsTable({
                           <span>
                             <span className="text-slate-700">{r.contractDate}</span>
                             <span className="block text-[11px] text-slate-400">{r.contractNo}</span>
+                            {depositUnconfirmed && (
+                              <span className="mt-0.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                계약금 미확인
+                              </span>
+                            )}
                           </span>
                         </button>
                       </td>

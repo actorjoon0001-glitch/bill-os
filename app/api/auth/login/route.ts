@@ -4,14 +4,12 @@ import {
   SESSION_SECRET,
   SESSION_MAX_AGE,
   REMEMBER_MAX_AGE,
-  ALLOWED_TEAMS,
-  ADMIN_EMAILS,
   supabaseAuthBase,
-  supabaseRest,
   supabaseKey,
   authConfigured,
 } from "@/lib/auth";
 import { signSession } from "@/lib/session";
+import { isLoginAllowed } from "@/lib/settlement";
 
 function redirectLogin(req: NextRequest, params: Record<string, string>) {
   const url = new URL("/login", req.url);
@@ -48,32 +46,8 @@ export async function POST(req: NextRequest) {
   }
   if (!authOk) return redirectLogin(req, { error: "cred", ...extra });
 
-  // 2) 접근 권한: 관리자 이메일이거나, employees 의 승인된 정산/경영팀
-  let allowed = ADMIN_EMAILS.includes(email);
-  if (!allowed) {
-    try {
-      const params = new URLSearchParams();
-      params.set("select", "team,status");
-      params.set("email", `ilike.${email}`); // 대소문자 무시 정확 일치
-      params.set("limit", "1");
-      const r = await fetch(`${supabaseRest()}/employees?${params.toString()}`, {
-        headers: {
-          apikey: supabaseKey(),
-          Authorization: `Bearer ${supabaseKey()}`,
-        },
-        cache: "no-store",
-      });
-      if (r.ok) {
-        const rows = (await r.json()) as Array<{ team?: string; status?: string }>;
-        const emp = rows?.[0];
-        if (emp && emp.status === "approved" && ALLOWED_TEAMS.includes(emp.team || "")) {
-          allowed = true;
-        }
-      }
-    } catch {
-      /* ignore → allowed 유지(false) */
-    }
-  }
+  // 2) 접근 권한: 관리자 → 직원별 설정 → 팀 규칙 (관리자 페이지에서 설정 가능)
+  const allowed = await isLoginAllowed(email);
   if (!allowed) return redirectLogin(req, { error: "perm", ...extra });
 
   // 3) 서명된 세션 쿠키 발급 후 이동

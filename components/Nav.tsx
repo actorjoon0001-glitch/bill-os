@@ -11,9 +11,13 @@ const links = [
   { href: "/vat", label: "부가세 신고", icon: "🏛️" },
 ];
 
-export default function Nav() {
+export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const items = isAdmin
+    ? [...links, { href: "/admin", label: "관리자", icon: "🛠️" }]
+    : links;
 
   // 로그인 화면에서는 사이드바를 숨긴다.
   if (pathname === "/login") return null;
@@ -31,7 +35,7 @@ export default function Nav() {
         <div className="text-xs text-slate-400">Settlement OS</div>
       </div>
       <nav className="space-y-1">
-        {links.map((l) => {
+        {items.map((l) => {
           const active =
             l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
           return (

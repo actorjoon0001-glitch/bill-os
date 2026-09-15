@@ -415,7 +415,7 @@ export default function EContractsTable({
                 <col style={{ width: 170 }} />
                 <col style={{ width: 110 }} />
                 {PAYMENTS.map((p) => (
-                  <col key={p.key} style={{ width: 160 }} />
+                  <col key={p.key} style={{ width: p.key === "deposit" ? 210 : 160 }} />
                 ))}
               </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
@@ -620,7 +620,7 @@ export default function EContractsTable({
                         const depShort = isDeposit ? r.downPayment - r.depositReceived : 0; // 만원(+면 부족)
                         return (
                           <td key={p.key} className="td align-top">
-                            <div className="flex flex-col gap-1 w-36">
+                            <div className={`flex flex-col gap-1 ${isDeposit ? "w-48" : "w-36"}`}>
                               {isDeposit && (r.depositRounds.length >= 2 || depShort !== 0) && (
                                 <div className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] leading-tight">
                                   <div className="flex justify-between text-slate-400">
@@ -635,7 +635,7 @@ export default function EContractsTable({
                                         key={i}
                                         className="flex justify-between text-slate-500"
                                       >
-                                        <span className="truncate mr-1">
+                                        <span className="mr-1">
                                           {i + 1}차 {shortDate(rd.date)}
                                           {rd.method ? ` · ${rd.method}` : ""}
                                         </span>

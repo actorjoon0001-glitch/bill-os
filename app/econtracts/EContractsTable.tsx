@@ -18,6 +18,10 @@ const fmtDateTime = (iso?: string) => {
   }
 };
 const fmtWon = (man: number) => Math.round(man * 10000).toLocaleString("ko-KR"); // 만원 → 원
+const shortDate = (d: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
+  return m ? `${Number(m[2])}/${Number(m[3])}` : d || "";
+};
 // 전자계약서(Contract-OS) 원본 열기 URL (#/edit/<id>)
 const CONTRACT_OS_URL = "https://seum-contract-os.netlify.app";
 const originalUrl = (id: number) => `${CONTRACT_OS_URL}/#/edit/${id}`;
@@ -507,7 +511,7 @@ export default function EContractsTable({
                           const e = m.extra || {};
                           // 수동 입력값 우선, 없으면 전자계약서 스케줄(자동) 적용
                           const sched: Record<string, number> = {
-                            deposit: r.downPayment,
+                            deposit: r.depositReceived,
                             mid1: r.interim1,
                             mid2: r.interim2,
                             mid3: r.interim3,
@@ -578,7 +582,7 @@ export default function EContractsTable({
                         //  - 계약금/중도금1~3/남은잔금: 전자계약서 결제 스케줄
                         //  - 추가금1·2: '추가 사항·변경 이력'(history)
                         const scheduleMan: Record<string, number> = {
-                          deposit: r.downPayment,
+                          deposit: r.depositReceived,
                           mid1: r.interim1,
                           mid2: r.interim2,
                           mid3: r.interim3,
@@ -612,9 +616,52 @@ export default function EContractsTable({
                           : blue
                           ? "text-blue-600 font-semibold"
                           : "";
+                        const isDeposit = p.key === "deposit";
+                        const depShort = isDeposit ? r.downPayment - r.depositReceived : 0; // 만원(+면 부족)
                         return (
                           <td key={p.key} className="td align-top">
                             <div className="flex flex-col gap-1 w-36">
+                              {isDeposit && (r.depositRounds.length >= 2 || depShort !== 0) && (
+                                <div className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] leading-tight">
+                                  <div className="flex justify-between text-slate-400">
+                                    <span>계약서 계약금</span>
+                                    <span className="tabular-nums text-slate-600">
+                                      {fmtWon(r.downPayment)}
+                                    </span>
+                                  </div>
+                                  {r.depositRounds.length >= 2 &&
+                                    r.depositRounds.map((rd, i) => (
+                                      <div
+                                        key={i}
+                                        className="flex justify-between text-slate-500"
+                                      >
+                                        <span className="truncate mr-1">
+                                          {i + 1}차 {shortDate(rd.date)}
+                                          {rd.method ? ` · ${rd.method}` : ""}
+                                        </span>
+                                        <span className="tabular-nums shrink-0">
+                                          {fmtWon(rd.amount)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  <div className="mt-0.5 flex justify-between border-t border-slate-200 pt-0.5 font-medium text-slate-700">
+                                    <span>받은 계약금</span>
+                                    <span className="tabular-nums">{fmtWon(r.depositReceived)}</span>
+                                  </div>
+                                  {depShort > 0 && (
+                                    <div className="flex justify-between font-semibold text-red-600">
+                                      <span>부족</span>
+                                      <span className="tabular-nums">{fmtWon(depShort)}</span>
+                                    </div>
+                                  )}
+                                  {depShort < 0 && (
+                                    <div className="flex justify-between font-medium text-amber-600">
+                                      <span>초과</span>
+                                      <span className="tabular-nums">{fmtWon(-depShort)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               <input
                                 value={hasAmt ? cell.amt || "" : autoAmt}
                                 onChange={(e) =>

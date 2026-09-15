@@ -23,6 +23,8 @@ export type EContractRow = {
   phone: string; // 연락처 (건축주)
   pyeong: string; // 계약평수 (품목에서 산출, 예: '19평 포치6평')
   moveType: string; // 현장/이동 구분
+  depositReceived: number; // 실제 받은 계약금 합계 (만원, 1·2차 분납 합산)
+  depositRounds: { date: string; amount: number; method: string }[]; // 계약금 분납 내역(1차·2차…)
   items: { name: string; unit: string; area: string; amount: string }[]; // 주문내용(상세용)
   extraCosts: { name: string; amount: string }[]; // 기타 비용(원본 계약 총액에 포함)
   extraNotes: string; // 서비스·기타 내용
@@ -82,6 +84,46 @@ function deriveMoveType(items: unknown): string {
   return "";
 }
 
+// 계약금 분납 내역 파싱 (data.deposit.ledger.down.rounds → 1차·2차…)
+//  - rounds 가 있으면 회차별 합산, 없으면 deposit.amount 단일 회차
+//  - 아무 기록도 없으면 계약서상 계약금(downPayment)을 받은 것으로 간주(구데이터 호환)
+function parseDeposit(
+  depRaw: unknown,
+  contractDate: string,
+  downPayment: number
+): { depositReceived: number; depositRounds: { date: string; amount: number; method: string }[] } {
+  const dep = (depRaw && typeof depRaw === "object" ? (depRaw as any) : null) as any;
+  let rounds: { date: string; amount: number; method: string }[] = [];
+  const rawRounds = dep?.ledger?.down?.rounds;
+  if (Array.isArray(rawRounds) && rawRounds.length) {
+    rounds = rawRounds
+      .map((rd: any) => {
+        const entries = Array.isArray(rd?.entries) ? rd.entries : [];
+        const amount =
+          entries.reduce((s: number, en: any) => s + num(en?.amount), 0) || num(rd?.amount);
+        const method =
+          entries
+            .map((en: any) => String(en?.method ?? "").trim())
+            .filter(Boolean)
+            .join("·") || String(rd?.method ?? "").trim();
+        return { date: String(rd?.date ?? ""), amount, method };
+      })
+      .filter((x) => x.amount > 0 || x.date);
+  } else if (dep && dep.amount != null) {
+    rounds = [
+      {
+        date: String(dep.date ?? contractDate ?? ""),
+        amount: num(dep.amount),
+        method: String(dep.method ?? "").trim(),
+      },
+    ];
+  }
+  const depositReceived = rounds.length
+    ? rounds.reduce((s, x) => s + x.amount, 0)
+    : downPayment; // 기록 없으면 계약서 계약금 = 받은 금액(부족 오표시 방지)
+  return { depositReceived, depositRounds: rounds };
+}
+
 export function permitLabel(code: string): string {
   if (code === "permit") return "인허가";
   if (code === "temporary") return "가설축조";
@@ -110,6 +152,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
     "interim3:data->amounts->>interim3",
     "balance:data->amounts->>balance",
     "permitType:data->>permitType",
+    "deposit:data->deposit",
     "ownerName:data->>ownerName",
     "phone:data->client->>phone",
     "items:data->items",
@@ -159,6 +202,7 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
       phone: String(r.phone ?? ""),
       pyeong: derivePyeong(r.items),
       moveType: deriveMoveType(r.items),
+      ...parseDeposit(r.deposit, String(r.contract_date ?? ""), num(r.downPayment)),
       items: Array.isArray(r.items)
         ? (r.items as any[])
             .filter((x) => x?.name)

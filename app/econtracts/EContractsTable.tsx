@@ -22,6 +22,60 @@ const shortDate = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
   return m ? `${Number(m[2])}/${Number(m[3])}` : d || "";
 };
+
+// 수납 컬럼(key) → 전자계약서 이력(kind) 매핑
+const MID_KIND: Record<string, string> = {
+  mid1: "중도금 1차",
+  mid2: "중도금 2차",
+  mid3: "중도금 3차",
+};
+const histMemo = (h: EContractRow["history"][number]) =>
+  [shortDate(h.recvDate), h.method, h.text].filter(Boolean).join(" · ");
+
+// 컬럼별 자동 금액(만원). 이력에 실수납이 있으면 우선, 없으면 계약서 스케줄.
+const autoManOf = (r: EContractRow, key: string): number => {
+  if (key === "deposit") return r.depositReceived;
+  if (MID_KIND[key]) {
+    const h = r.history.find((x) => x.kind === MID_KIND[key]);
+    if (h) return h.amount;
+    return key === "mid1" ? r.interim1 : key === "mid2" ? r.interim2 : r.interim3;
+  }
+  if (key === "remain") {
+    const rem = r.history.filter((x) => x.kind === "잔금 1차" || x.kind === "잔금 2차");
+    if (rem.length) return rem.reduce((s, x) => s + x.amount, 0);
+    return r.balance;
+  }
+  if (key === "add1" || key === "add2") {
+    const adds = r.history.filter((x) => x.kind === "추가금" || !x.kind);
+    const h = adds[key === "add1" ? 0 : 1];
+    return h ? h.amount : 0;
+  }
+  return 0;
+};
+
+// 컬럼별 자동 메모(수납일·수단·내용). 스케줄 자동값은 메모 없음.
+const autoMemoOf = (r: EContractRow, key: string): string => {
+  if (MID_KIND[key]) {
+    const h = r.history.find((x) => x.kind === MID_KIND[key]);
+    return h ? histMemo(h) : "";
+  }
+  if (key === "remain") {
+    const rem = r.history.filter((x) => x.kind === "잔금 1차" || x.kind === "잔금 2차");
+    return rem.length
+      ? rem
+          .map((x) =>
+            [x.kind, shortDate(x.recvDate), x.method, x.text].filter(Boolean).join(" ")
+          )
+          .join(" · ")
+      : "";
+  }
+  if (key === "add1" || key === "add2") {
+    const adds = r.history.filter((x) => x.kind === "추가금" || !x.kind);
+    const h = adds[key === "add1" ? 0 : 1];
+    return h ? histMemo(h) : "";
+  }
+  return "";
+};
 // 전자계약서(Contract-OS) 원본 열기 URL (#/edit/<id>)
 const CONTRACT_OS_URL = "https://seum-contract-os.netlify.app";
 const originalUrl = (id: number) => `${CONTRACT_OS_URL}/#/edit/${id}`;
@@ -509,15 +563,10 @@ export default function EContractsTable({
                       <td className="td text-right tabular-nums font-semibold whitespace-nowrap">
                         {(() => {
                           const e = m.extra || {};
-                          // 수동 입력값 우선, 없으면 전자계약서 스케줄(자동) 적용
-                          const sched: Record<string, number> = {
-                            deposit: r.depositReceived,
-                            mid1: r.interim1,
-                            mid2: r.interim2,
-                            mid3: r.interim3,
-                          };
-                          const received = Object.keys(sched).reduce(
-                            (s, k) => s + (e[k]?.amt ? num(e[k]?.amt) : sched[k] * 10000),
+                          // 수동 입력값 우선, 없으면 이력(실수납)/스케줄 자동값 적용
+                          const keys = ["deposit", "mid1", "mid2", "mid3"];
+                          const received = keys.reduce(
+                            (s, k) => s + (e[k]?.amt ? num(e[k]?.amt) : autoManOf(r, k) * 10000),
                             0
                           );
                           const rem = r.productTotal * 10000 - received; // 원
@@ -589,17 +638,10 @@ export default function EContractsTable({
                           remain: r.balance,
                         };
                         const isSchedule = scheduleMan[p.key] !== undefined;
-                        let autoAmt = "";
-                        let autoMemo = "";
-                        if (isSchedule) {
-                          if (scheduleMan[p.key] > 0) autoAmt = String(scheduleMan[p.key] * 10000);
-                        } else if (p.key === "add1" || p.key === "add2") {
-                          const h = r.history[p.key === "add1" ? 0 : 1];
-                          if (h) {
-                            autoAmt = String(h.amount * 10000);
-                            autoMemo = [h.text, h.method].filter(Boolean).join(" · ");
-                          }
-                        }
+                        // 자동 금액/메모: 이력(kind) 실수납 우선, 없으면 계약서 스케줄
+                        const autoMan = autoManOf(r, p.key);
+                        const autoAmt = autoMan > 0 ? String(autoMan * 10000) : "";
+                        const autoMemo = autoMemoOf(r, p.key);
                         const hasAmt = cell.amt !== undefined && cell.amt !== "";
                         const hasMemo = cell.memo !== undefined && cell.memo !== "";
                         const isAuto = !hasAmt && !!autoAmt; // 자동값 표시 중
@@ -876,6 +918,54 @@ export default function EContractsTable({
                                 </div>
                                 <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
                                   {r.extraNotes}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 추가 수납 · 변경 이력 (전자계약서 기록) */}
+                            {r.history.length > 0 && (
+                              <div className="mt-4">
+                                <div className="text-xs font-semibold text-slate-500 mb-1">
+                                  추가 수납 · 변경 이력
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                                    <thead className="bg-slate-50 text-slate-500 text-xs">
+                                      <tr>
+                                        <th className="px-3 py-1.5 text-left font-medium">구분</th>
+                                        <th className="px-3 py-1.5 text-right font-medium">금액</th>
+                                        <th className="px-3 py-1.5 text-left font-medium">수단</th>
+                                        <th className="px-3 py-1.5 text-left font-medium">수납일</th>
+                                        <th className="px-3 py-1.5 text-left font-medium">담당</th>
+                                        <th className="px-3 py-1.5 text-left font-medium">메모</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {r.history.map((h, i) => (
+                                        <tr key={i}>
+                                          <td className="px-3 py-1.5 whitespace-nowrap">
+                                            <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700">
+                                              {h.kind || "기타"}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
+                                            {fmtMan(h.amount)}
+                                            <span className="text-[10px] text-slate-400"> 만원</span>
+                                          </td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                            {h.method || "-"}
+                                          </td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                            {h.recvDate || "-"}
+                                          </td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                            {h.recvBy || "-"}
+                                          </td>
+                                          <td className="px-3 py-1.5 text-slate-600">{h.text || "-"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </div>
                             )}

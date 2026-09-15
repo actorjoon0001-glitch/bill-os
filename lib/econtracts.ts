@@ -28,7 +28,15 @@ export type EContractRow = {
   items: { name: string; unit: string; area: string; amount: string }[]; // 주문내용(상세용)
   extraCosts: { name: string; amount: string }[]; // 기타 비용(원본 계약 총액에 포함)
   extraNotes: string; // 서비스·기타 내용
-  history: { amount: number; text: string; method: string }[]; // 추가 사항·변경 이력(계약 후 추가 수납)
+  // 추가 사항·변경 이력(계약 후 실수납). kind로 중도금/잔금/추가금 구분.
+  history: {
+    kind: string; // 추가금 | 중도금 1차 | 중도금 2차 | 중도금 3차 | 잔금 1차 | 잔금 2차 | 기타
+    amount: number; // 만원
+    method: string; // 계좌이체·카드·현금
+    recvDate: string; // 수납일
+    recvBy: string; // 담당자
+    text: string; // 메모
+  }[];
 };
 
 const num = (v: unknown) => {
@@ -223,9 +231,15 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
         ? (r.history as any[])
             .filter((h) => !h?.deleted && num(h?.amount) > 0)
             .map((h) => ({
+              kind: String(h.kind ?? ""),
               amount: num(h.amount),
+              method:
+                Array.isArray(h.methods) && h.methods.length
+                  ? h.methods.filter(Boolean).join("·")
+                  : String(h.method ?? ""),
+              recvDate: String(h.recvDate ?? ""),
+              recvBy: String(h.recvBy ?? h.by ?? ""),
               text: String(h.text ?? ""),
-              method: String(h.method ?? ""),
             }))
         : [],
     }))

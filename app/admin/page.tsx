@@ -36,7 +36,7 @@ export default async function AdminPage() {
     <div>
       <PageHeader
         title="관리자 · 접근 권한 설정"
-        desc="정산 OS에 로그인할 수 있는 직원을 설정합니다. (기본: 정산·경영팀 자동 허용)"
+        desc="경영지원 OS에 로그인할 수 있는 직원을 설정합니다. (기본: 정산·경영팀 자동 허용)"
       />
       {employees.length === 0 ? (
         <div className="card p-6 text-sm text-slate-600 leading-relaxed">

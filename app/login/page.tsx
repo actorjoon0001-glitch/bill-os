@@ -22,7 +22,7 @@ export default function LoginPage({
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="text-2xl font-bold text-brand-700">세움 정산 OS</div>
+          <div className="text-2xl font-bold text-brand-700">세움 경영지원 OS</div>
           <div className="text-sm text-slate-500 mt-1 font-medium">
             경영관리팀 전용 OS입니다.
           </div>

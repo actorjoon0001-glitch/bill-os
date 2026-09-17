@@ -41,7 +41,7 @@ export default async function EContractsPage() {
       {!configured ? (
         <div className="card p-6 text-sm text-slate-600 leading-relaxed">
           <div className="font-semibold text-slate-800 mb-2">전자계약서 연동 설정이 필요합니다</div>
-          정산OS Netlify 환경변수에 아래 두 값을 등록한 뒤 재배포하면 계약완료 건이 표시됩니다.
+          경영지원 OS Netlify 환경변수에 아래 두 값을 등록한 뒤 재배포하면 계약완료 건이 표시됩니다.
           <ul className="mt-3 space-y-1 text-slate-500">
             <li>
               <code className="text-brand-600">ECONTRACT_API_URL</code> — 세움os Supabase REST 주소

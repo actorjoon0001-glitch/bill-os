@@ -6,7 +6,7 @@ import { AUTH_COOKIE, SESSION_SECRET, ADMIN_EMAILS } from "@/lib/auth";
 import { verifySession } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "세움 정산 OS",
+  title: "세움 경영지원 OS",
   description: "계약·수납·매출·비용·부가세를 한 곳에서 관리하는 경영지원팀 전용 시스템",
 };
 

@@ -42,7 +42,7 @@ export default async function IncentivesPage() {
       {!configured ? (
         <div className="card p-6 text-sm text-slate-600 leading-relaxed">
           <div className="font-semibold text-slate-800 mb-2">전자계약서 연동 설정이 필요합니다</div>
-          정산OS Netlify 환경변수에 <code className="text-brand-600">ECONTRACT_API_URL</code>,{" "}
+          경영지원 OS Netlify 환경변수에 <code className="text-brand-600">ECONTRACT_API_URL</code>,{" "}
           <code className="text-brand-600">ECONTRACT_API_KEY</code> 를 등록한 뒤 재배포하면
           인센티브 정산이 표시됩니다.
         </div>

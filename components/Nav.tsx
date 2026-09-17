@@ -31,7 +31,7 @@ export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <aside className="w-60 shrink-0 border-r border-slate-200 bg-white min-h-screen p-4 hidden md:block">
       <div className="px-2 py-3 mb-4">
-        <div className="text-lg font-bold text-brand-700">세움 정산 OS</div>
+        <div className="text-lg font-bold text-brand-700">세움 경영지원 OS</div>
         <div className="text-xs text-slate-400">Settlement OS</div>
       </div>
       <nav className="space-y-1">

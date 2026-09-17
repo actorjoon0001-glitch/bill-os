@@ -9,6 +9,9 @@ const links = [
   { href: "/incentives", label: "영업사원 인센티브", icon: "💰" },
   { href: "/expenses", label: "비용", icon: "🧾" },
   { href: "/vat", label: "부가세 신고", icon: "🏛️" },
+  { href: "/attendance", label: "근태 관리", icon: "🕘" },
+  { href: "/leave", label: "월차 관리", icon: "🌴" },
+  { href: "/worklog", label: "팀 업무일지", icon: "📒" },
 ];
 
 export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {

@@ -1,76 +1,90 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui";
-import type { Employee } from "@/lib/settlement";
-import type { Attendance } from "@/lib/hr";
+import type { PlatformAttendance } from "@/lib/hr";
 
-const STATUSES = ["출근", "지각", "외근", "반차", "연차", "결근"];
-const STATUS_COLOR: Record<string, string> = {
-  출근: "text-emerald-600",
-  지각: "text-amber-600",
-  외근: "text-sky-600",
-  반차: "text-violet-600",
-  연차: "text-blue-600",
-  결근: "text-red-600",
+// KST(UTC+9) 시:분
+const fmtKST = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return `${String(k.getUTCHours()).padStart(2, "0")}:${String(k.getUTCMinutes()).padStart(2, "0")}`;
+};
+const fmtDur = (min: number | null) => {
+  if (!min || min <= 0) return "";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+};
+const SHOWROOM: Record<string, string> = {
+  headquarters: "본사",
+  ganghwa: "강화",
+  gwangju: "광주",
+  andong: "안동",
+};
+const srLabel = (s: string) => SHOWROOM[s] || s || "-";
+
+// status/근무상태 라벨·색
+const statusMeta = (r: PlatformAttendance): { label: string; cls: string } => {
+  if (r.status === "finished" || r.check_out) return { label: "퇴근", cls: "bg-slate-200 text-slate-600" };
+  if (r.status === "working" || r.status === "before" || r.check_in)
+    return { label: "근무중", cls: "bg-emerald-100 text-emerald-700" };
+  return { label: r.status || "-", cls: "bg-slate-100 text-slate-500" };
 };
 
 export default function AttendanceTable({
-  employees,
-  initial,
+  rows,
   date,
-  currentUser,
 }: {
-  employees: Employee[];
-  initial: Record<string, Attendance>;
+  rows: PlatformAttendance[];
   date: string;
-  currentUser: string;
 }) {
   const router = useRouter();
-  const [rec, setRec] = useState<Record<string, Attendance>>(initial);
+  const [team, setTeam] = useState("ALL");
   const [q, setQ] = useState("");
 
-  const save = (emp: Employee, patch: Partial<Attendance>) => {
-    const e = (emp.email || "").toLowerCase();
-    if (!e) return;
-    const cur = rec[e] || {
-      id: `${e}::${date}`,
-      email: e,
-      name: emp.name,
-      date,
-      status: "",
-    };
-    const next: Attendance = { ...cur, ...patch, id: `${e}::${date}`, email: e, name: emp.name, date };
-    setRec((m) => ({ ...m, [e]: next }));
-    fetch("/api/hr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "attendance", row: next }),
-    }).catch(() => {});
-  };
+  const teams = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.team).filter(Boolean))).sort(),
+    [rows]
+  );
 
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
-    return kw
-      ? employees.filter((emp) =>
-          `${emp.name} ${emp.team} ${emp.position_name ?? ""}`.toLowerCase().includes(kw)
-        )
-      : employees;
-  }, [employees, q]);
+    return rows.filter((r) => {
+      if (team !== "ALL" && r.team !== team) return false;
+      if (kw && !`${r.user_name} ${r.team} ${srLabel(r.showroom)}`.toLowerCase().includes(kw))
+        return false;
+      return true;
+    });
+  }, [rows, team, q]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const emp of employees) {
-      const st = rec[(emp.email || "").toLowerCase()]?.status;
-      if (st) c[st] = (c[st] || 0) + 1;
+  const stat = useMemo(() => {
+    let working = 0,
+      finished = 0,
+      late = 0;
+    for (const r of filtered) {
+      if (r.status === "finished" || r.check_out) finished += 1;
+      else working += 1;
+      if (r.is_late) late += 1;
     }
-    return c;
-  }, [employees, rec]);
+    return { total: filtered.length, working, finished, late };
+  }, [filtered]);
+
+  const shiftDate = (days: number) => {
+    const d = new Date(date + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    router.push(`/attendance?date=${d.toISOString().slice(0, 10)}`);
+  };
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <button onClick={() => shiftDate(-1)} className="btn-ghost px-2 py-1 text-slate-500" title="이전 날짜">
+          ◀
+        </button>
         <input
           type="date"
           value={date}
@@ -78,95 +92,91 @@ export default function AttendanceTable({
           className="input w-auto"
           aria-label="근태 일자"
         />
+        <button onClick={() => shiftDate(1)} className="btn-ghost px-2 py-1 text-slate-500" title="다음 날짜">
+          ▶
+        </button>
+        <select className="input w-auto" value={team} onChange={(e) => setTeam(e.target.value)}>
+          <option value="ALL">팀 전체</option>
+          {teams.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
         <input
-          className="input max-w-xs"
-          placeholder="이름 / 팀 / 직급 검색"
+          className="input max-w-[180px]"
+          placeholder="이름 / 팀 / 전시장 검색"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="card px-4 py-2 text-sm flex flex-wrap gap-x-3 gap-y-1">
-          {STATUSES.map((s) => (
-            <span key={s}>
-              <span className="text-xs text-slate-400">{s} </span>
-              <span className={`font-bold tabular-nums ${STATUS_COLOR[s]}`}>{counts[s] || 0}</span>
-            </span>
-          ))}
+        <div className="card px-4 py-2 text-sm ml-auto flex gap-3">
+          <span>
+            <span className="text-xs text-slate-400">출근 </span>
+            <span className="font-bold tabular-nums text-slate-800">{stat.total}</span>
+          </span>
+          <span>
+            <span className="text-xs text-slate-400">근무중 </span>
+            <span className="font-bold tabular-nums text-emerald-600">{stat.working}</span>
+          </span>
+          <span>
+            <span className="text-xs text-slate-400">퇴근 </span>
+            <span className="font-bold tabular-nums text-slate-500">{stat.finished}</span>
+          </span>
+          <span>
+            <span className="text-xs text-slate-400">지각 </span>
+            <span className="font-bold tabular-nums text-amber-600">{stat.late}</span>
+          </span>
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState>직원이 없습니다.</EmptyState>
+        <EmptyState>해당 날짜의 출근 기록이 없습니다.</EmptyState>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[860px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
                 <tr>
                   <th className="th">이름</th>
                   <th className="th">팀</th>
-                  <th className="th text-center">근태 상태</th>
+                  <th className="th">전시장</th>
                   <th className="th text-center">출근</th>
                   <th className="th text-center">퇴근</th>
-                  <th className="th">메모</th>
+                  <th className="th text-right">근무시간</th>
+                  <th className="th text-center">상태</th>
+                  <th className="th">비고</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((emp) => {
-                  const e = (emp.email || "").toLowerCase();
-                  const r = rec[e];
+                {filtered.map((r) => {
+                  const st = statusMeta(r);
                   return (
-                    <tr key={emp.id} className="hover:bg-slate-50/60">
+                    <tr key={r.id} className="hover:bg-slate-50/60">
                       <td className="td font-medium text-slate-800 whitespace-nowrap">
-                        {emp.name}
-                        {emp.position_name && (
-                          <span className="ml-1 text-xs text-slate-400">{emp.position_name}</span>
+                        {r.user_name || "-"}
+                      </td>
+                      <td className="td text-slate-500 whitespace-nowrap">{r.team || "-"}</td>
+                      <td className="td text-slate-500 whitespace-nowrap">{srLabel(r.showroom)}</td>
+                      <td className="td text-center tabular-nums whitespace-nowrap">
+                        {fmtKST(r.check_in) || "-"}
+                        {r.is_late && (
+                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">
+                            지각
+                          </span>
                         )}
                       </td>
-                      <td className="td text-slate-500 whitespace-nowrap">{emp.team}</td>
-                      <td className="td text-center">
-                        <select
-                          value={r?.status || ""}
-                          disabled={!emp.email}
-                          onChange={(ev) => save(emp, { status: ev.target.value })}
-                          className={`input w-auto py-1 text-sm font-medium ${
-                            r?.status ? STATUS_COLOR[r.status] : "text-slate-400"
-                          }`}
-                        >
-                          <option value="">미기록</option>
-                          {STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
+                      <td className="td text-center tabular-nums whitespace-nowrap">
+                        {fmtKST(r.check_out) || "-"}
+                      </td>
+                      <td className="td text-right tabular-nums whitespace-nowrap text-slate-600">
+                        {fmtDur(r.work_minutes) || "-"}
                       </td>
                       <td className="td text-center">
-                        <input
-                          type="time"
-                          value={r?.check_in || ""}
-                          disabled={!emp.email}
-                          onChange={(ev) => save(emp, { check_in: ev.target.value })}
-                          className="input w-auto py-1 text-sm"
-                        />
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${st.cls}`}>
+                          {st.label}
+                        </span>
                       </td>
-                      <td className="td text-center">
-                        <input
-                          type="time"
-                          value={r?.check_out || ""}
-                          disabled={!emp.email}
-                          onChange={(ev) => save(emp, { check_out: ev.target.value })}
-                          className="input w-auto py-1 text-sm"
-                        />
-                      </td>
-                      <td className="td">
-                        <input
-                          value={r?.memo || ""}
-                          disabled={!emp.email}
-                          onChange={(ev) => save(emp, { memo: ev.target.value })}
-                          placeholder="메모"
-                          className="input py-1 w-full"
-                        />
-                      </td>
+                      <td className="td text-slate-600">{r.note || r.memo || "-"}</td>
                     </tr>
                   );
                 })}
@@ -177,8 +187,7 @@ export default function AttendanceTable({
       )}
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-        · 상태·시간·메모는 변경 즉시 저장되어 경영지원팀 전원이 함께 봅니다.
-        {currentUser && <> · 접속: {currentUser}</>}
+        · 세움 플랫폼의 출·퇴근 버튼으로 기록된 실제 근태입니다(읽기 전용). 시간은 한국시간(KST) 기준.
       </p>
     </div>
   );

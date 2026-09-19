@@ -9,6 +9,43 @@ const headers = (extra: Record<string, string> = {}) => ({
 });
 const ready = () => Boolean(supabaseRest() && supabaseKey());
 
+// ---- 세움 플랫폼 실제 출·퇴근 조회 (attendance 테이블, 읽기 전용) ----
+export type PlatformAttendance = {
+  id: string;
+  user_name: string;
+  team: string;
+  showroom: string;
+  date: string;
+  check_in: string | null; // ISO(UTC)
+  check_out: string | null; // ISO(UTC)
+  status: string; // working/finished/late/before
+  is_late: boolean;
+  work_minutes: number | null;
+  note: string | null;
+  memo: string | null;
+};
+
+export async function getPlatformAttendance(date: string): Promise<PlatformAttendance[]> {
+  if (!ready() || !date) return [];
+  try {
+    const params = new URLSearchParams();
+    params.set(
+      "select",
+      "id,user_name,team,showroom,date,check_in,check_out,status,is_late,work_minutes,note,memo"
+    );
+    params.set("date", `eq.${date}`);
+    params.set("order", "check_in.asc");
+    const res = await fetch(`${supabaseRest()}/attendance?${params.toString()}`, {
+      headers: headers(),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as PlatformAttendance[];
+  } catch {
+    return [];
+  }
+}
+
 // ---- 근태 관리 (일자·직원별) ----
 export type Attendance = {
   id: string; // `${email}::${date}`

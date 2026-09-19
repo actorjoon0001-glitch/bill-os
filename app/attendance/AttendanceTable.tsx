@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui";
 import type { PlatformAttendance } from "@/lib/hr";
@@ -149,6 +149,31 @@ export default function AttendanceTable({
     return { present, working, finished, late, absent };
   }, [entries, team]);
 
+  // 전시장별 그룹 (본사 → 1~4전시장 → 강화/광주/안동 → 기타)
+  const srRank = (name: string) => {
+    if (name === "본사") return 0;
+    const m = /^(\d+)전시장$/.exec(name);
+    if (m) return 10 + Number(m[1]);
+    const order = ["강화전시장", "광주전시장", "안동전시장"];
+    const i = order.indexOf(name);
+    if (i >= 0) return 100 + i;
+    return 500;
+  };
+  const groups = useMemo(() => {
+    const map = new Map<string, Entry[]>();
+    for (const e of filtered) {
+      const key = srLabel(e.showroom);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    }
+    return Array.from(map.entries())
+      .map(([showroom, list]) => {
+        const present = list.filter((e) => e.att).length;
+        return { showroom, list, present, absent: list.length - present };
+      })
+      .sort((a, b) => srRank(a.showroom) - srRank(b.showroom) || a.showroom.localeCompare(b.showroom, "ko"));
+  }, [filtered]);
+
   const shiftDate = (days: number) => {
     const d = new Date(date + "T00:00:00");
     d.setDate(d.getDate() + days);
@@ -228,7 +253,6 @@ export default function AttendanceTable({
                 <tr>
                   <th className="th">이름</th>
                   <th className="th">팀</th>
-                  <th className="th">전시장</th>
                   <th className="th text-center">출근</th>
                   <th className="th text-center">퇴근</th>
                   <th className="th text-right">근무시간</th>
@@ -237,37 +261,48 @@ export default function AttendanceTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((e) => {
-                  const att = e.att;
-                  const st = statusMeta(att);
-                  return (
-                    <tr key={e.key} className={`hover:bg-slate-50/60 ${!att ? "bg-slate-50/40" : ""}`}>
-                      <td className={`td font-medium whitespace-nowrap ${att ? "text-slate-800" : "text-slate-400"}`}>
-                        {e.name || "-"}
-                      </td>
-                      <td className="td text-slate-500 whitespace-nowrap">{e.team || "-"}</td>
-                      <td className="td text-slate-500 whitespace-nowrap">{srLabel(e.showroom)}</td>
-                      <td className="td text-center tabular-nums whitespace-nowrap">
-                        {att ? fmtKST(att.check_in) || "-" : "-"}
-                        {att?.is_late && (
-                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">지각</span>
-                        )}
-                      </td>
-                      <td className="td text-center tabular-nums whitespace-nowrap">
-                        {att ? fmtKST(att.check_out) || "-" : "-"}
-                      </td>
-                      <td className="td text-right tabular-nums whitespace-nowrap text-slate-600">
-                        {att ? fmtDur(att.work_minutes) || "-" : "-"}
-                      </td>
-                      <td className="td text-center">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${st.cls}`}>
-                          {st.label}
+                {groups.map((g) => (
+                  <Fragment key={g.showroom}>
+                    <tr className="bg-brand-50/60 border-y border-brand-100">
+                      <td className="td font-bold text-brand-700" colSpan={7}>
+                        🏬 {g.showroom}
+                        <span className="ml-2 text-xs font-normal text-slate-500">
+                          출근 {g.present} · 미출근 {g.absent} · 총 {g.list.length}명
                         </span>
                       </td>
-                      <td className="td text-slate-600">{att ? att.note || att.memo || "-" : "-"}</td>
                     </tr>
-                  );
-                })}
+                    {g.list.map((e) => {
+                      const att = e.att;
+                      const st = statusMeta(att);
+                      return (
+                        <tr key={e.key} className={`hover:bg-slate-50/60 ${!att ? "bg-slate-50/40" : ""}`}>
+                          <td className={`td font-medium whitespace-nowrap pl-6 ${att ? "text-slate-800" : "text-slate-400"}`}>
+                            {e.name || "-"}
+                          </td>
+                          <td className="td text-slate-500 whitespace-nowrap">{e.team || "-"}</td>
+                          <td className="td text-center tabular-nums whitespace-nowrap">
+                            {att ? fmtKST(att.check_in) || "-" : "-"}
+                            {att?.is_late && (
+                              <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">지각</span>
+                            )}
+                          </td>
+                          <td className="td text-center tabular-nums whitespace-nowrap">
+                            {att ? fmtKST(att.check_out) || "-" : "-"}
+                          </td>
+                          <td className="td text-right tabular-nums whitespace-nowrap text-slate-600">
+                            {att ? fmtDur(att.work_minutes) || "-" : "-"}
+                          </td>
+                          <td className="td text-center">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${st.cls}`}>
+                              {st.label}
+                            </span>
+                          </td>
+                          <td className="td text-slate-600">{att ? att.note || att.memo || "-" : "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>

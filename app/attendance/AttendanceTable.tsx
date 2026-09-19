@@ -22,11 +22,20 @@ const fmtDur = (min: number | null) => {
 };
 const SHOWROOM: Record<string, string> = {
   headquarters: "본사",
-  ganghwa: "강화",
-  gwangju: "광주",
-  andong: "안동",
+  ganghwa: "강화전시장",
+  gwangju: "광주전시장",
+  andong: "안동전시장",
+  showroom1: "1전시장",
+  showroom2: "2전시장",
+  showroom3: "3전시장",
+  showroom4: "4전시장",
 };
-const srLabel = (s: string) => SHOWROOM[s] || s || "-";
+const srLabel = (s: string) => {
+  if (SHOWROOM[s]) return SHOWROOM[s];
+  const m = /^showroom(\d+)$/i.exec(s || "");
+  if (m) return `${m[1]}전시장`;
+  return s || "-";
+};
 
 type Entry = {
   key: string;

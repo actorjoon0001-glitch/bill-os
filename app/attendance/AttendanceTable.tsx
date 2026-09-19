@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui";
 import type { PlatformAttendance } from "@/lib/hr";
+import type { Employee } from "@/lib/settlement";
 
 // KST(UTC+9) 시:분
 const fmtKST = (iso: string | null) => {
@@ -27,51 +28,117 @@ const SHOWROOM: Record<string, string> = {
 };
 const srLabel = (s: string) => SHOWROOM[s] || s || "-";
 
-// status/근무상태 라벨·색
-const statusMeta = (r: PlatformAttendance): { label: string; cls: string } => {
-  if (r.status === "finished" || r.check_out) return { label: "퇴근", cls: "bg-slate-200 text-slate-600" };
-  if (r.status === "working" || r.status === "before" || r.check_in)
-    return { label: "근무중", cls: "bg-emerald-100 text-emerald-700" };
-  return { label: r.status || "-", cls: "bg-slate-100 text-slate-500" };
+type Entry = {
+  key: string;
+  name: string;
+  team: string;
+  showroom: string;
+  att: PlatformAttendance | null;
+};
+
+const statusMeta = (att: PlatformAttendance | null): { label: string; cls: string } => {
+  if (!att) return { label: "미출근", cls: "bg-slate-100 text-slate-400" };
+  if (att.status === "finished" || att.check_out) return { label: "퇴근", cls: "bg-slate-200 text-slate-600" };
+  return { label: "근무중", cls: "bg-emerald-100 text-emerald-700" };
 };
 
 export default function AttendanceTable({
   rows,
+  employees,
   date,
 }: {
   rows: PlatformAttendance[];
+  employees: Employee[];
   date: string;
 }) {
   const router = useRouter();
   const [team, setTeam] = useState("ALL");
   const [q, setQ] = useState("");
+  const [showAbsent, setShowAbsent] = useState(true);
+
+  // 직원 + 출근기록 병합 (미출근 포함)
+  const entries = useMemo<Entry[]>(() => {
+    const byEmpId = new Map<number, PlatformAttendance>();
+    const byUserId = new Map<string, PlatformAttendance>();
+    const byName = new Map<string, PlatformAttendance>();
+    for (const r of rows) {
+      if (r.employee_id != null) byEmpId.set(r.employee_id, r);
+      if (r.user_id) byUserId.set(r.user_id, r);
+      if (r.user_name) byName.set(r.user_name, r);
+    }
+    const usedAttIds = new Set<string>();
+    const list: Entry[] = [];
+    for (const emp of employees) {
+      if (emp.status === "blocked") continue; // 퇴사/차단 제외
+      const att =
+        byEmpId.get(emp.id) ||
+        (emp.auth_user_id ? byUserId.get(emp.auth_user_id) : undefined) ||
+        byName.get(emp.name) ||
+        null;
+      if (att) usedAttIds.add(att.id);
+      list.push({
+        key: `emp-${emp.id}`,
+        name: emp.name,
+        team: emp.team || (att?.team ?? ""),
+        showroom: emp.showroom || (att?.showroom ?? ""),
+        att,
+      });
+    }
+    // 직원 목록에 없는 출근기록도 누락 없이 추가
+    for (const r of rows) {
+      if (!usedAttIds.has(r.id)) {
+        list.push({
+          key: `att-${r.id}`,
+          name: r.user_name || "-",
+          team: r.team || "",
+          showroom: r.showroom || "",
+          att: r,
+        });
+      }
+    }
+    return list;
+  }, [rows, employees]);
 
   const teams = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.team).filter(Boolean))).sort(),
-    [rows]
+    () => Array.from(new Set(entries.map((e) => e.team).filter(Boolean))).sort(),
+    [entries]
   );
 
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (team !== "ALL" && r.team !== team) return false;
-      if (kw && !`${r.user_name} ${r.team} ${srLabel(r.showroom)}`.toLowerCase().includes(kw))
-        return false;
+    const list = entries.filter((e) => {
+      if (!showAbsent && !e.att) return false;
+      if (team !== "ALL" && e.team !== team) return false;
+      if (kw && !`${e.name} ${e.team} ${srLabel(e.showroom)}`.toLowerCase().includes(kw)) return false;
       return true;
     });
-  }, [rows, team, q]);
+    // 출근한 사람 먼저(출근시각 순), 미출근 뒤(이름 순)
+    return list.sort((a, b) => {
+      if (!!a.att !== !!b.att) return a.att ? -1 : 1;
+      if (a.att && b.att) return (a.att.check_in || "").localeCompare(b.att.check_in || "");
+      return a.name.localeCompare(b.name, "ko");
+    });
+  }, [entries, team, q, showAbsent]);
 
   const stat = useMemo(() => {
-    let working = 0,
+    let present = 0,
+      working = 0,
       finished = 0,
-      late = 0;
-    for (const r of filtered) {
-      if (r.status === "finished" || r.check_out) finished += 1;
-      else working += 1;
-      if (r.is_late) late += 1;
+      late = 0,
+      absent = 0;
+    for (const e of entries) {
+      if (team !== "ALL" && e.team !== team) continue;
+      if (e.att) {
+        present += 1;
+        if (e.att.status === "finished" || e.att.check_out) finished += 1;
+        else working += 1;
+        if (e.att.is_late) late += 1;
+      } else {
+        absent += 1;
+      }
     }
-    return { total: filtered.length, working, finished, late };
-  }, [filtered]);
+    return { present, working, finished, late, absent };
+  }, [entries, team]);
 
   const shiftDate = (days: number) => {
     const d = new Date(date + "T00:00:00");
@@ -109,10 +176,19 @@ export default function AttendanceTable({
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <div className="card px-4 py-2 text-sm ml-auto flex gap-3">
+        <label className="flex items-center gap-1.5 text-sm text-slate-500 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showAbsent}
+            onChange={(e) => setShowAbsent(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          미출근 포함
+        </label>
+        <div className="card px-4 py-2 text-sm ml-auto flex flex-wrap gap-x-3 gap-y-1">
           <span>
             <span className="text-xs text-slate-400">출근 </span>
-            <span className="font-bold tabular-nums text-slate-800">{stat.total}</span>
+            <span className="font-bold tabular-nums text-slate-800">{stat.present}</span>
           </span>
           <span>
             <span className="text-xs text-slate-400">근무중 </span>
@@ -126,11 +202,15 @@ export default function AttendanceTable({
             <span className="text-xs text-slate-400">지각 </span>
             <span className="font-bold tabular-nums text-amber-600">{stat.late}</span>
           </span>
+          <span>
+            <span className="text-xs text-slate-400">미출근 </span>
+            <span className="font-bold tabular-nums text-red-500">{stat.absent}</span>
+          </span>
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState>해당 날짜의 출근 기록이 없습니다.</EmptyState>
+        <EmptyState>표시할 직원이 없습니다.</EmptyState>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -148,35 +228,34 @@ export default function AttendanceTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((r) => {
-                  const st = statusMeta(r);
+                {filtered.map((e) => {
+                  const att = e.att;
+                  const st = statusMeta(att);
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50/60">
-                      <td className="td font-medium text-slate-800 whitespace-nowrap">
-                        {r.user_name || "-"}
+                    <tr key={e.key} className={`hover:bg-slate-50/60 ${!att ? "bg-slate-50/40" : ""}`}>
+                      <td className={`td font-medium whitespace-nowrap ${att ? "text-slate-800" : "text-slate-400"}`}>
+                        {e.name || "-"}
                       </td>
-                      <td className="td text-slate-500 whitespace-nowrap">{r.team || "-"}</td>
-                      <td className="td text-slate-500 whitespace-nowrap">{srLabel(r.showroom)}</td>
+                      <td className="td text-slate-500 whitespace-nowrap">{e.team || "-"}</td>
+                      <td className="td text-slate-500 whitespace-nowrap">{srLabel(e.showroom)}</td>
                       <td className="td text-center tabular-nums whitespace-nowrap">
-                        {fmtKST(r.check_in) || "-"}
-                        {r.is_late && (
-                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">
-                            지각
-                          </span>
+                        {att ? fmtKST(att.check_in) || "-" : "-"}
+                        {att?.is_late && (
+                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-700">지각</span>
                         )}
                       </td>
                       <td className="td text-center tabular-nums whitespace-nowrap">
-                        {fmtKST(r.check_out) || "-"}
+                        {att ? fmtKST(att.check_out) || "-" : "-"}
                       </td>
                       <td className="td text-right tabular-nums whitespace-nowrap text-slate-600">
-                        {fmtDur(r.work_minutes) || "-"}
+                        {att ? fmtDur(att.work_minutes) || "-" : "-"}
                       </td>
                       <td className="td text-center">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${st.cls}`}>
                           {st.label}
                         </span>
                       </td>
-                      <td className="td text-slate-600">{r.note || r.memo || "-"}</td>
+                      <td className="td text-slate-600">{att ? att.note || att.memo || "-" : "-"}</td>
                     </tr>
                   );
                 })}
@@ -187,7 +266,7 @@ export default function AttendanceTable({
       )}
 
       <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-        · 세움 플랫폼의 출·퇴근 버튼으로 기록된 실제 근태입니다(읽기 전용). 시간은 한국시간(KST) 기준.
+        · 세움 플랫폼 출·퇴근 기록 기준(읽기 전용) · 시간은 한국시간(KST) · 출근 기록이 없는 재직 직원은 &lsquo;미출근&rsquo;으로 표시됩니다.
       </p>
     </div>
   );

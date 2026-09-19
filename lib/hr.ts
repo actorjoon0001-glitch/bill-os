@@ -12,6 +12,8 @@ const ready = () => Boolean(supabaseRest() && supabaseKey());
 // ---- 세움 플랫폼 실제 출·퇴근 조회 (attendance 테이블, 읽기 전용) ----
 export type PlatformAttendance = {
   id: string;
+  user_id: string | null;
+  employee_id: number | null;
   user_name: string;
   team: string;
   showroom: string;
@@ -31,7 +33,7 @@ export async function getPlatformAttendance(date: string): Promise<PlatformAtten
     const params = new URLSearchParams();
     params.set(
       "select",
-      "id,user_name,team,showroom,date,check_in,check_out,status,is_late,work_minutes,note,memo"
+      "id,user_id,employee_id,user_name,team,showroom,date,check_in,check_out,status,is_late,work_minutes,note,memo"
     );
     params.set("date", `eq.${date}`);
     params.set("order", "check_in.asc");

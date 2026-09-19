@@ -63,6 +63,7 @@ export type Employee = {
   email: string;
   status: string;
   showroom: string | null;
+  auth_user_id: string | null;
 };
 
 // 세움 직원 전체 목록(관리자 페이지용). 팀·이름 순.
@@ -70,7 +71,7 @@ export async function getEmployees(): Promise<Employee[]> {
   if (!ready()) return [];
   try {
     const params = new URLSearchParams();
-    params.set("select", "id,name,team,position_name,email,status,showroom");
+    params.set("select", "id,name,team,position_name,email,status,showroom,auth_user_id");
     params.set("order", "team.asc,name.asc");
     const res = await fetch(`${supabaseRest()}/employees?${params.toString()}`, {
       headers: headers(),

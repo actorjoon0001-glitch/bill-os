@@ -9,7 +9,7 @@ import {
   type Leave,
   type Worklog,
 } from "@/lib/hr";
-import { actorEmail, logActivity } from "@/lib/activity";
+import { logRequest } from "@/lib/activity";
 
 // 근태/월차/업무일지 저장·삭제 (팀 공유)
 export async function POST(req: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         op === "delete"
           ? await deleteLeave(String(body.id || ""))
           : await upsertLeave(body.row as Leave);
-      if (ok) await logActivity(await actorEmail(req), `월차 ${op === "delete" ? "삭제" : "등록"}`);
+      if (ok) await logRequest(req, `월차 ${op === "delete" ? "삭제" : "등록"}`);
       return NextResponse.json({ ok });
     }
     if (kind === "worklog") {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         op === "delete"
           ? await deleteWorklog(String(body.id || ""))
           : await upsertWorklog(body.row as Worklog);
-      if (ok) await logActivity(await actorEmail(req), `업무일지 ${op === "delete" ? "삭제" : "등록"}`);
+      if (ok) await logRequest(req, `업무일지 ${op === "delete" ? "삭제" : "등록"}`);
       return NextResponse.json({ ok });
     }
     return NextResponse.json({ error: "알 수 없는 요청" }, { status: 400 });

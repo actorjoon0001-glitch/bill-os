@@ -30,12 +30,14 @@ export default function ActivityLog({
   items,
   nameByEmail,
   adminEmails,
+  initialView = "all",
 }: {
   items: Activity[];
   nameByEmail: Record<string, string>;
   adminEmails: string[];
+  initialView?: "all" | "login" | "work";
 }) {
-  const [view, setView] = useState<"all" | "login" | "work">("all");
+  const [view, setView] = useState<"all" | "login" | "work">(initialView);
   const [q, setQ] = useState("");
 
   const nameOf = (email: string) => {

@@ -14,22 +14,36 @@ const links = [
   { href: "/worklog", label: "팀 업무일지", icon: "📒" },
 ];
 
+// 관리자 전용 메뉴 (exact: 하위 경로에서도 자기 자신만 활성)
+const adminLinks = [
+  { href: "/admin/logins", label: "로그인 기록", icon: "🕓" },
+  { href: "/admin/activity", label: "활동 기록", icon: "📋" },
+  { href: "/admin", label: "권한 관리", icon: "⚙️", exact: true },
+];
+
 export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const items = isAdmin
-    ? [...links, { href: "/admin", label: "관리자", icon: "🛠️" }]
-    : links;
-
   // 로그인 화면에서는 사이드바를 숨긴다.
   if (pathname === "/login") return null;
+
+  const isActive = (href: string, exact?: boolean) => {
+    if (href === "/") return pathname === "/";
+    if (exact) return pathname === href;
+    return pathname === href || pathname.startsWith(href + "/");
+  };
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }
+
+  const linkClass = (active: boolean) =>
+    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      active ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-50"
+    }`;
 
   return (
     <aside className="w-60 shrink-0 border-r border-slate-200 bg-white min-h-screen p-4 hidden md:block">
@@ -38,25 +52,30 @@ export default function Nav({ isAdmin = false }: { isAdmin?: boolean }) {
         <div className="text-xs text-slate-400">Settlement OS</div>
       </div>
       <nav className="space-y-1">
-        {items.map((l) => {
-          const active =
-            l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-brand-50 text-brand-700"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <span className="text-base">{l.icon}</span>
-              {l.label}
-            </Link>
-          );
-        })}
+        {links.map((l) => (
+          <Link key={l.href} href={l.href} className={linkClass(isActive(l.href))}>
+            <span className="text-base">{l.icon}</span>
+            {l.label}
+          </Link>
+        ))}
       </nav>
+
+      {isAdmin && (
+        <div className="mt-6">
+          <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            관리자
+          </div>
+          <nav className="space-y-1">
+            {adminLinks.map((l) => (
+              <Link key={l.href} href={l.href} className={linkClass(isActive(l.href, l.exact))}>
+                <span className="text-base">{l.icon}</span>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
+
       <div className="mt-8 px-3">
         <button
           onClick={logout}

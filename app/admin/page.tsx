@@ -3,9 +3,7 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE, SESSION_SECRET, ADMIN_EMAILS, ALLOWED_TEAMS } from "@/lib/auth";
 import { verifySession } from "@/lib/session";
 import { getEmployees, getAccessMap, type Employee } from "@/lib/settlement";
-import { getActivity, type Activity } from "@/lib/activity";
 import AdminAccessTable from "./AdminAccessTable";
-import ActivityLog from "./ActivityLog";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +16,7 @@ export default async function AdminPage() {
   if (!isAdmin) {
     return (
       <div>
-        <PageHeader title="관리자" desc="관리자 전용 페이지입니다." />
+        <PageHeader title="권한 관리" desc="관리자 전용 페이지입니다." />
         <div className="card p-6 text-sm text-slate-600">
           이 페이지는 관리자만 접근할 수 있습니다.
         </div>
@@ -28,24 +26,16 @@ export default async function AdminPage() {
 
   let employees: Employee[] = [];
   let access: Record<string, boolean> = {};
-  let activity: Activity[] = [];
   try {
-    [employees, access, activity] = await Promise.all([
-      getEmployees(),
-      getAccessMap(),
-      getActivity(300),
-    ]);
+    [employees, access] = await Promise.all([getEmployees(), getAccessMap()]);
   } catch {
     /* 조회 실패 시 빈 목록 */
   }
 
-  const nameByEmail: Record<string, string> = {};
-  for (const e of employees) if (e.email) nameByEmail[e.email.toLowerCase()] = e.name;
-
   return (
     <div>
       <PageHeader
-        title="관리자 · 접근 권한 설정"
+        title="권한 관리"
         desc="경영지원 OS에 로그인할 수 있는 직원을 설정합니다. (기본: 정산·경영팀 자동 허용)"
       />
       {employees.length === 0 ? (
@@ -62,14 +52,6 @@ export default async function AdminPage() {
           allowedTeams={ALLOWED_TEAMS}
         />
       )}
-
-      <div className="mt-8">
-        <div className="text-lg font-bold text-slate-800 mb-1">로그인 · 활동 기록</div>
-        <div className="text-sm text-slate-500 mb-3">
-          최근 로그인 및 사용자별 작업 내역입니다. (최근 300건)
-        </div>
-        <ActivityLog items={activity} nameByEmail={nameByEmail} adminEmails={ADMIN_EMAILS} />
-      </div>
     </div>
   );
 }

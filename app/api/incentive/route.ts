@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { upsertIncentiveRate, upsertIncentiveSettle } from "@/lib/settlement";
-import { actorEmail, logActivity } from "@/lib/activity";
+import { logRequest } from "@/lib/activity";
 
 // 인센티브 요율/지급여부/메모 저장
 export async function POST(req: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     };
     if (body.type === "rate") {
       const ok = await upsertIncentiveRate(String(body.salesperson || ""), Number(body.rate) || 0);
-      if (ok) await logActivity(await actorEmail(req), "인센티브 요율 변경", `${body.salesperson ?? ""} ${body.rate ?? ""}%`);
+      if (ok) await logRequest(req, "인센티브 요율 변경", `${body.salesperson ?? ""} ${body.rate ?? ""}%`);
       return NextResponse.json({ ok });
     }
     if (body.type === "settle") {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       if (typeof body.paid === "boolean") patch.paid = body.paid;
       if (typeof body.memo === "string") patch.memo = body.memo;
       const ok = await upsertIncentiveSettle(String(body.id || ""), patch);
-      if (ok) await logActivity(await actorEmail(req), "인센티브 지급/메모", String(body.id || ""));
+      if (ok) await logRequest(req, "인센티브 지급/메모", String(body.id || ""));
       return NextResponse.json({ ok });
     }
     return NextResponse.json({ error: "type 필요" }, { status: 400 });

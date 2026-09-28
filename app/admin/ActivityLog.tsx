@@ -51,7 +51,7 @@ export default function ActivityLog({
       if (view === "login" && it.action !== "로그인") return false;
       if (view === "work" && it.action === "로그인") return false;
       if (kw) {
-        const t = `${nameOf(it.email)} ${it.email} ${it.action} ${it.detail ?? ""}`.toLowerCase();
+        const t = `${nameOf(it.email)} ${it.email} ${it.action} ${it.detail ?? ""} ${it.device ?? ""} ${it.ip ?? ""}`.toLowerCase();
         if (!t.includes(kw)) return false;
       }
       return true;
@@ -90,12 +90,13 @@ export default function ActivityLog({
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-0">
                 <tr>
                   <th className="th whitespace-nowrap">시각(KST)</th>
                   <th className="th">이름</th>
                   <th className="th text-center">작업</th>
+                  <th className="th">기기 / 접속 IP</th>
                   <th className="th">상세</th>
                 </tr>
               </thead>
@@ -113,6 +114,16 @@ export default function ActivityLog({
                       <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${actionColor(it.action)}`}>
                         {it.action}
                       </span>
+                    </td>
+                    <td className="td whitespace-nowrap">
+                      {it.device ? (
+                        <span className="text-slate-700">
+                          {/휴대폰|태블릿/.test(it.device) ? "📱" : "💻"} {it.device}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">-</span>
+                      )}
+                      {it.ip && <div className="text-[11px] text-slate-400 tabular-nums">{it.ip}</div>}
                     </td>
                     <td className="td text-slate-600">{it.detail || "-"}</td>
                   </tr>

@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { AUTH_COOKIE, SESSION_SECRET, ADMIN_EMAILS, ALLOWED_TEAMS } from "@/lib/auth";
 import { verifySession } from "@/lib/session";
 import { getEmployees, getAccessMap, type Employee } from "@/lib/settlement";
+import { getActivity, type Activity } from "@/lib/activity";
 import AdminAccessTable from "./AdminAccessTable";
+import ActivityLog from "./ActivityLog";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +28,19 @@ export default async function AdminPage() {
 
   let employees: Employee[] = [];
   let access: Record<string, boolean> = {};
+  let activity: Activity[] = [];
   try {
-    [employees, access] = await Promise.all([getEmployees(), getAccessMap()]);
+    [employees, access, activity] = await Promise.all([
+      getEmployees(),
+      getAccessMap(),
+      getActivity(300),
+    ]);
   } catch {
     /* 조회 실패 시 빈 목록 */
   }
+
+  const nameByEmail: Record<string, string> = {};
+  for (const e of employees) if (e.email) nameByEmail[e.email.toLowerCase()] = e.name;
 
   return (
     <div>
@@ -52,6 +62,14 @@ export default async function AdminPage() {
           allowedTeams={ALLOWED_TEAMS}
         />
       )}
+
+      <div className="mt-8">
+        <div className="text-lg font-bold text-slate-800 mb-1">로그인 · 활동 기록</div>
+        <div className="text-sm text-slate-500 mb-3">
+          최근 로그인 및 사용자별 작업 내역입니다. (최근 300건)
+        </div>
+        <ActivityLog items={activity} nameByEmail={nameByEmail} adminEmails={ADMIN_EMAILS} />
+      </div>
     </div>
   );
 }

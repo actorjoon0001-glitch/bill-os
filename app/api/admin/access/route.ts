@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE, SESSION_SECRET, ADMIN_EMAILS } from "@/lib/auth";
 import { verifySession } from "@/lib/session";
 import { setAccess } from "@/lib/settlement";
+import { logActivity } from "@/lib/activity";
 
 // 관리자: 직원별 정산OS 접근 권한 설정 (default | allow | block)
 export async function POST(req: NextRequest) {
@@ -25,5 +26,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "관리자는 차단할 수 없습니다." }, { status: 400 });
   }
   const ok = await setAccess(target, mode as "default" | "allow" | "block", email);
+  if (ok) {
+    const label = mode === "allow" ? "허용" : mode === "block" ? "차단" : "기본";
+    await logActivity(email, "직원 권한 변경", `${target} → ${label}`);
+  }
   return NextResponse.json({ ok });
 }

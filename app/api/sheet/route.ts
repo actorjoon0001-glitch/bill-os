@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { upsertSheet } from "@/lib/settlement";
+import { actorEmail, logActivity } from "@/lib/activity";
 
 // 전자계약서 관리 시트 입력값 저장 (계약번호별 upsert)
 export async function POST(req: NextRequest) {
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
       biz: p.biz ?? null,
       extra: p.extra ?? null,
     });
+    if (ok) await logActivity(await actorEmail(req), "전자계약서 수정", `계약 ${contractNo}`);
     return NextResponse.json({ ok });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });

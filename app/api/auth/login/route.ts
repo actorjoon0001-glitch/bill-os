@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth";
 import { signSession } from "@/lib/session";
 import { isLoginAllowed } from "@/lib/settlement";
+import { logActivity } from "@/lib/activity";
 
 function redirectLogin(req: NextRequest, params: Record<string, string>) {
   const url = new URL("/login", req.url);
@@ -61,5 +62,6 @@ export async function POST(req: NextRequest) {
     path: "/",
     maxAge: remember ? REMEMBER_MAX_AGE : SESSION_MAX_AGE,
   });
+  await logActivity(email, "로그인", remember ? "자동 로그인" : undefined);
   return res;
 }

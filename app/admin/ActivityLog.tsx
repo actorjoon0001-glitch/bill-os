@@ -18,6 +18,8 @@ const fmtKST = (iso: string) => {
 const actionColor = (a: string) =>
   a === "로그인"
     ? "bg-emerald-100 text-emerald-700"
+    : a === "접속"
+    ? "bg-teal-100 text-teal-700"
     : a.includes("권한")
     ? "bg-violet-100 text-violet-700"
     : a.includes("전자계약서")
@@ -25,6 +27,8 @@ const actionColor = (a: string) =>
     : a.includes("인센티브")
     ? "bg-amber-100 text-amber-700"
     : "bg-slate-100 text-slate-600";
+
+const isAccess = (a: string) => a === "로그인" || a === "접속";
 
 export default function ActivityLog({
   items,
@@ -48,8 +52,8 @@ export default function ActivityLog({
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
     return items.filter((it) => {
-      if (view === "login" && it.action !== "로그인") return false;
-      if (view === "work" && it.action === "로그인") return false;
+      if (view === "login" && !isAccess(it.action)) return false;
+      if (view === "work" && isAccess(it.action)) return false;
       if (kw) {
         const t = `${nameOf(it.email)} ${it.email} ${it.action} ${it.detail ?? ""} ${it.device ?? ""} ${it.ip ?? ""}`.toLowerCase();
         if (!t.includes(kw)) return false;

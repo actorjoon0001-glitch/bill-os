@@ -138,12 +138,21 @@ export function permitLabel(code: string): string {
   return code || "-";
 }
 
-export async function fetchCompletedContracts(): Promise<EContractRow[]> {
+// 전자계약서 조회 결과 서버 캐시(인스턴스 메모리). light/full 별도.
+const _ecCache: Record<string, { at: number; rows: EContractRow[] }> = {};
+const EC_CACHE_TTL = 60_000; // 60초
+
+export async function fetchCompletedContracts(
+  opts: { light?: boolean } = {}
+): Promise<EContractRow[]> {
   const base = process.env.ECONTRACT_API_URL;
   const key = process.env.ECONTRACT_API_KEY;
   if (!base || !key) return [];
 
-  const select = [
+  // 큰 JSON(items/extraCosts/history/deposit)은 상세·수납 화면에서만 필요.
+  // 대시보드 등 집계용은 light 로 제외해 쿼리 부하·타임아웃을 줄인다.
+  const heavy = ["deposit:data->deposit", "items:data->items", "extraCosts:data->extraCosts", "history:data->history"];
+  const selectAll = [
     "id",
     "contract_no",
     "client_name",
@@ -167,7 +176,8 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
     "extraCosts:data->extraCosts",
     "extraNotes:data->>extraNotes",
     "history:data->history",
-  ].join(",");
+  ];
+  const select = (opts.light ? selectAll.filter((f) => !heavy.includes(f)) : selectAll).join(",");
 
   const params = new URLSearchParams();
   params.set("select", select);
@@ -177,17 +187,29 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
 
   const url = `${base.replace(/\/+$/, "")}/econtracts?${params.toString()}`;
 
-  const res = await fetch(url, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
-    cache: "no-store",
-  });
+  // 짧은 서버 캐시 + 실패 시 직전 캐시로 폴백(DB 타임아웃에도 화면 유지)
+  const cacheKey = opts.light ? "light" : "full";
+  const cached = _ecCache[cacheKey];
+  if (cached && Date.now() - cached.at < EC_CACHE_TTL) return cached.rows;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    });
+  } catch (e) {
+    if (cached) return cached.rows;
+    throw e;
+  }
   if (!res.ok) {
+    if (cached) return cached.rows; // 500/타임아웃 등 → 직전 데이터 제공
     const body = await res.text().catch(() => "");
     throw new Error(`전자계약서 조회 실패 (HTTP ${res.status}) ${body.slice(0, 200)}`);
   }
 
   const rows = (await res.json()) as Array<Record<string, unknown>>;
-  return rows
+  const mapped = rows
     .map((r) => ({
       id: Number(r.id) || 0,
       contractNo: String(r.contract_no ?? ""),
@@ -244,4 +266,6 @@ export async function fetchCompletedContracts(): Promise<EContractRow[]> {
         : [],
     }))
     .filter((r) => r.downPayment > 0);
+  _ecCache[cacheKey] = { at: Date.now(), rows: mapped };
+  return mapped;
 }

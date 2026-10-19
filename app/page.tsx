@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   let error: string | null = null;
   if (configured) {
     try {
-      rows = await fetchCompletedContracts();
+      rows = await fetchCompletedContracts({ light: true });
     } catch (e) {
       error = e instanceof Error ? e.message : "전자계약서 조회 중 오류가 발생했습니다.";
     }

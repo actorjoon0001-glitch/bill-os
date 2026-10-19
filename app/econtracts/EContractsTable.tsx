@@ -22,6 +22,16 @@ const shortDate = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
   return m ? `${Number(m[2])}/${Number(m[3])}` : d || "";
 };
+// 입력값 천단위 콤마 (숫자만 추출해 표시, 빈값/소수점 허용)
+const withCommas = (v: string) => {
+  if (v === "" || v == null) return "";
+  const neg = String(v).trim().startsWith("-");
+  const cleaned = String(v).replace(/[^\d.]/g, "");
+  if (cleaned === "") return "";
+  const [int, ...rest] = cleaned.split(".");
+  const out = (int ? Number(int).toLocaleString("en-US") : "0") + (rest.length ? "." + rest.join("") : "");
+  return neg ? `-${out}` : out;
+};
 
 // 수납 컬럼(key) → 전자계약서 이력(kind) 매핑
 const MID_KIND: Record<string, string> = {
@@ -139,6 +149,7 @@ export default function EContractsTable({
   const [showroom, setShowroom] = useState("ALL");
   const [month, setMonth] = useState(thisMonth);
   const [dateFrom, setDateFrom] = useState("");
+  const [comma, setComma] = useState(true); // 금액 입력칸 천단위 콤마 표시
   const [dateTo, setDateTo] = useState("");
   const [onlyUnconfirmed, setOnlyUnconfirmed] = useState(false); // 계약금 미확인건만 보기
 
@@ -445,6 +456,18 @@ export default function EContractsTable({
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => setComma((v) => !v)}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+            comma
+              ? "bg-brand-600 text-white"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+          title="금액 입력칸 천단위 콤마 표시 전환"
+        >
+          1,000 콤마 {comma ? "ON" : "OFF"}
+        </button>
         <div className="ml-auto text-sm text-slate-400">{filtered.length}건 · 금액 단위: 원</div>
       </div>
 
@@ -705,10 +728,16 @@ export default function EContractsTable({
                                 </div>
                               )}
                               <input
-                                value={hasAmt ? cell.amt || "" : autoAmt}
+                                value={comma ? withCommas(hasAmt ? cell.amt || "" : autoAmt) : hasAmt ? cell.amt || "" : autoAmt}
                                 onChange={(e) =>
-                                  setAmount(r.contractNo, p.key, e.target.value, autoAmt)
+                                  setAmount(
+                                    r.contractNo,
+                                    p.key,
+                                    e.target.value.replace(/,/g, ""),
+                                    autoAmt
+                                  )
                                 }
+                                inputMode="numeric"
                                 placeholder="금액"
                                 className={`input py-1 w-full text-right ${amtClass}`}
                               />
